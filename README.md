@@ -35,7 +35,7 @@
 <br />
 <p align="center">
   <a href="https://github.com/muchaste/EOD-logger">
-    <img src="images/logo.png" alt="Logo" width="101" height="40">
+    <img src="images/logo.png" alt="Logo" width="1010" height="400">
   </a>
 
   <h3 align="center">EOD-logger</h3>
@@ -128,13 +128,15 @@ As soon as the EOD-logger is powered up, it will run through its startup routine
 See the [open issues](https://github.com/muchaste/EOD-logger/issues) for a list of proposed features (and known issues).
 
 ### EODlogger v2
-We are currently developing hardware enhancements (amplifier and filter shield) to extend the useability of the EOD logger.
-Planned changes:
+We are currently developing hardware and software enhancements (amplifier and filter shield) to extend the useability of the EOD logger.
+Planned changes could include:
 * Amplification, low-pass and high-pass filtering of signals before recording
 * Differential amplification: use only analog input to record differential voltage -> record two channels
+* Reduced battery usage/powerbank as power source
+* GPS module
 
-### A new eFish-finder
-[Prof. Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Find the fork here:
+### Two channel recording
+[Prof. Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Find their contribution here:
 [https://github.com/muchaste/EOD-Logger/tree/master/eodlogger-2channel](https://github.com/muchaste/EOD-Logger/tree/master/eodlogger-2channel).
 
 <!-- CONTRIBUTING -->
