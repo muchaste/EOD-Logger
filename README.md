@@ -60,6 +60,7 @@
 ## Table of Contents
 
 * [About the Project](#about-the-project)
+  * [Overview: EOD-logger v1](#overview-eod-logger-v1)
   * [Built With](#built-with)
 * [Getting Started](#getting-started)
   * [Prerequisites](#prerequisites)
