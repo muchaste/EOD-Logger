@@ -35,7 +35,7 @@
 <br />
 <p align="center">
   <a href="https://github.com/muchaste/EOD-logger">
-    <img src="images/logo.png" alt="Logo" width="1010" height="400">
+    <img src="images/logo.png" alt="Logo" width="505" height="200">
   </a>
 
   <h3 align="center">EOD-logger</h3>
