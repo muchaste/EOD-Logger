@@ -11,9 +11,6 @@
 -->
 
 
-
-
-
 <!-- PROJECT SHIELDS -->
 <!--
 *** I'm using markdown "reference style" links for readability.
@@ -21,13 +18,12 @@
 *** See the bottom of this document for the declaration of the reference variables
 *** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
 *** https://www.markdownguide.org/basic-syntax/#reference-style-links
-[![LinkedIn][linkedin-shield]][linkedin-url]
 -->
-[![Contributors][contributors-shield]][https://github.com/muchaste/EOD-Logger/graphs/contributors]
-[![Forks][forks-shield]][https://github.com/muchaste/EOD-Logger/network/members]
-[![Stargazers][stars-shield]][https://github.com/muchaste/EOD-Logger/stargazers]
-[![Issues][issues-shield]][https://github.com/muchaste/EOD-Logger/issues]
-[![MIT License][license-shield]][https://github.com/muchaste/EOD-Logger/blob/master/LICENSE.txt]
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
 
 <!-- PROJECT LOGO -->
 <br />
@@ -180,16 +176,14 @@ Project Link: [https://github.com/muchaste/EOD-logger](https://github.com/muchas
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-<!-- [contributors-shield]: https://img.shields.io/github/contributors/muchaste/repo.svg?style=flat-square
-[contributors-url]: https://github.com/muchaste/repo/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/muchaste/repo.svg?style=flat-square
-[forks-url]: https://github.com/muchaste/repo/network/members
-[stars-shield]: https://img.shields.io/github/stars/muchaste/repo.svg?style=flat-square
-[stars-url]: https://github.com/muchaste/repo/stargazers
-[issues-shield]: https://img.shields.io/github/issues/muchaste/repo.svg?style=flat-square
-[issues-url]: https://github.com/muchaste/repo/issues
-[license-shield]: https://img.shields.io/github/license/muchaste/repo.svg?style=flat-square
-[license-url]: https://github.com/muchaste/repo/blob/master/LICENSE.txt
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/muchaste
-[product-screenshot]: images/screenshot.png -->
+[contributors-shield]: https://img.shields.io/github/contributors/muchaste/EOD-logger.svg?style=flat-square
+[contributors-url]: https://github.com/muchaste/EOD-Logger/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/muchaste/EOD-logger.svg?style=flat-square
+[forks-url]: https://github.com/muchaste/EOD-Logger/network/members
+[stars-shield]: https://img.shields.io/github/stars/muchaste/EOD-logger.svg?style=flat-square
+[stars-url]: https://github.com/muchaste/EOD-logger/stargazers
+[issues-shield]: https://img.shields.io/github/issues/muchaste/EOD-logger.svg?style=flat-square
+[issues-url]: https://github.com/muchaste/EOD-logger/issues
+[license-shield]: https://img.shields.io/github/license/muchaste/EOD-logger.svg?style=flat-square
+[license-url]: https://github.com/muchaste/EOD-logger/blob/master/LICENSE.txt
+
