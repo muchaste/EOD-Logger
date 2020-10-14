@@ -110,7 +110,7 @@ Voltage is measured in differential mode and written to the onboard buffer using
 
 3. Wire the components as can be seen below:
 <img src="images/eod_logger_wiring_Steckplatine.png" alt="Wiring scheme">
-
+<img src="images/eod_logger_wiring_circuit.png" alt="Circuit scheme">
 4. Set the RTC clock using the "SetTime" Sketch from the DS1317RTC library examples (this also works with the DS3231 chip)
 
 5. Upload the eodlogger_v1.ino 
