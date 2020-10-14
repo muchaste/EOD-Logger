@@ -10,7 +10,7 @@
 #include <array>              //use C++ array structs
 #include "SdFat.h"            //work with SD card
 #include <TimeLib.h>          //modified DateTime library for timekeeping functionality
-#include <DS1307RTC.h>        //library to read DS1307 rtc
+#include <DS1307RTC.h>        //library to read DS1307 rtc AND DS3231 RTC
 #include <Wire.h>             //library for I2C-communication (via SCL - serial clock and SDA - serial data)
 
 
