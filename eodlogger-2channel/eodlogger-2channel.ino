@@ -112,13 +112,12 @@ uint32_t bufPtr1 = 0;
 
 //  DMA interrupt service routines
 /*----------------------------------------------------------------*/
-void dma0_isr(void)			                    	  // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
-dma.clearInterrupt();
-dma0_isr_counter++;
+void dma0_isr(void) {			                    	  // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+  dma.clearInterrupt();
+  dma0_isr_counter++;
 }
 
-void dma1_isr(void)
-{
+void dma1_isr(void) {
   dma1.clearInterrupt();
   dma1_isr_counter++;
 }
@@ -425,7 +424,7 @@ void loop() {
 
     last += BUF_DIM ;							                                          // increment last to control for file end
 
-    old_dma0_isr_counter +						                                      // increment counter so that it matches dma0_isr_counter
+    old_dma0_isr_counter++;					                                        // increment counter so that it matches dma0_isr_counter
 
     bufPtr = 0x7fff & (bufPtr + 16 * 512);				                          // choose next buffer section
 
