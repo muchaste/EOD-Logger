@@ -156,7 +156,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 <!-- CONTACT -->
 ## Contact
 
-Stefan Mucha - [@@SBiosci](https://twitter.com/@SBiosci) - stefan.mucha@hu-berlin.de
+Stefan Mucha - [@SBiosci](https://twitter.com/@SBiosci) - stefan.mucha@hu-berlin.de
 
 Project Link: [https://github.com/muchaste/EOD-logger](https://github.com/muchaste/EOD-logger)
 
