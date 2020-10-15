@@ -11,8 +11,7 @@
 
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
-uint32_t duration = 60;           // duration of each measure-cycle [s]
-unsigned long pause = 0;          // pause-duration
+uint32_t duration = 60*2;           // duration of each measure-cycle [s]
 String Name = "Log";              // file name prefix
 unsigned long debug_start;
 /*----------------------------------------------------------------*/
@@ -21,21 +20,21 @@ unsigned long debug_start;
 ADC adc;            // used to declare the adc.### object
 
 /*PINS------------------------------------------------------------*/
-const uint8_t adc_pin0 = A2;                    // A4 is connected to ADC0
-const uint8_t adc_pin1 = A22;                   // A16 is connected to ADC1
+const uint8_t adc_pin0 = A2;                    // A2 is connected to ADC0
+const uint8_t adc_pin1 = A22;                   // A22 is connected to ADC1
 /*----------------------------------------------------------------*/
 
 /*Buffer declarations----------------------------------------------*/
 std::array<volatile uint16_t, (uint32_t)64 * 512> buffer __attribute__ ((aligned (16 * 1024)));      // size of buffer is limited due to the Teensy's program memory
 std::array<volatile uint16_t, (uint32_t)64 * 512> buffer1 __attribute__ ((aligned (16 * 1024)));
 
-uint32_t      BUF_DIM       = 32768 / 2;                                          //size of buffer that holds data from ADC
+uint32_t      BUF_DIM       = 32768/2;                                          //size of buffer that holds data from ADC
 uint32_t      FILE_SIZE     = 0;                                                  //initial variables for filesize and pointer to...
 uint32_t      last          = 0;     
-uint32_t      bytes         = ((duration * 1000000) / (1000000 / pdbfreq)) * 2;
-float         preceil       = bytes / BUF_DIM;
-float         scale         = ceil(preceil);                                      // round up preceil value
-const int     times_buffer  = (scale + 2);                                        // creation of a file based on duration
+uint32_t      last1         = 0;     
+uint32_t      bytes         = 0;
+float         preceil       = 0;
+float         scale         = 0;
 /*----------------------------------------------------------------*/
 
 /*DECLARATIONS dma and tcd----------------------------------------*/
@@ -48,48 +47,15 @@ typeof(*dma1.TCD)  tcd1_mem[4] __attribute__ ((aligned (32))) ;
 
 
 /*DECLARATIONS microSD card files---------------------------------*/
-SdFatSdio sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
+SdFatSdioEX sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
 
-uint16_t fileNr = 1;                             // after a given duration a new file is created; fileNr is an index used for the filename
+uint16_t fileNr = 0;                             // after a given duration a new file is created; fileNr is an index used for the filename
+uint16_t fileNr1 = 0;
 
 File file;                                       // file object for logging data
 File file1;                                      // file object for logging data
 /*----------------------------------------------------------------*/
 
-
-/*DECLARATIONS for Interrupt Service Routine (ISR)----------------*/
-// The transfer of data from the buffer to the SD card is initiated via an interrupt service routine
-
-uint32_t dma0_isr_counter = 0;                  // counter that will be incremented after a major loop completion (hardware)
-uint32_t dma1_isr_counter = 0;
-
-uint32_t old_dma0_isr_counter = 0;              // counter that is compared to the dma0_isr_counter to register the hardware increment
-uint32_t old_dma1_isr_counter = 0;
-
-uint32_t bufPtr = 0;                            // pointer to the buffer section in which the data is currently transferred
-uint32_t bufPtr1 = 0;
-/*----------------------------------------------------------------*/
-
-
-//  DMA interrupt service routines
-/*----------------------------------------------------------------*/
-void dma0_isr(void) {                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
-  dma.clearInterrupt();
-  dma0_isr_counter++;
-}
-
-void dma1_isr(void) {
-  dma1.clearInterrupt();
-  dma1_isr_counter++;
-}
-/*----------------------------------------------------------------*/
-
-/*PDB ISR---------------------------------------------------------*/
-void pdb_isr(void) {                           // PDB interrupt routine
-  PDB0_SC &= ~PDB_SC_PDBIF  ;                  // clear interrupt
-  Serial.println(".");
-}
-/*----------------------------------------------------------------*/
 
 // function creates new files for data logging
 /*----------------------------------------------------------------*/
@@ -104,13 +70,16 @@ void filestuff() {
   if (!file.open(fname, O_RDWR | O_CREAT)) {
     sd.errorHalt("open dma0 file failed");
   }
+}
 
-  String filename1 = Name + "_dma1_" + fileNr + ".bin";
-
-  filename1.toCharArray(fname, 30);
+void filestuff1() {
+  fileNr1++;
+  String filename1 = Name + "_dma1_" + fileNr1 + ".bin";
+  char fname1[30];
+  filename1.toCharArray(fname1, 30);
   Serial.print("filename: ");
-  Serial.println(filename);
-  if (!file1.open(fname, O_RDWR | O_CREAT)) {
+  Serial.println(filename1);
+  if (!file1.open(fname1, O_RDWR | O_CREAT)) {
     sd.errorHalt("open dma1 file failed");
   }
 }
@@ -149,42 +118,27 @@ void setup()
   delay(100);
   /*----------------------------------------------------------------*/
 
-  /*set Filesize-----------------------------------------------------*/
-  FILE_SIZE = times_buffer * BUF_DIM;                                        // after writing FILE_SIZE uint16_t values to a file a new file is created
-  /*----------------------------------------------------------------*/
-
-  /*Debug-----------------------------------------------------------*/
-  Serial.println(BUF_DIM);
-  Serial.println(FILE_SIZE);
-  Serial.print("bytes: ");
-  Serial.println(bytes);
-  Serial.println((uint32_t)&buffer[ 0], HEX);                               // debug: print memory location of buffer
-  Serial.println((uint32_t)&buffer[ 16 * 512], HEX);
-  Serial.println((uint32_t)&buffer[ 32 * 512], HEX);
-  Serial.println((uint32_t)&buffer[ 48 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 0], HEX);
-  Serial.println((uint32_t)&buffer1[ 16 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 32 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 48 * 512], HEX);
-  Serial.println("----------------------------------");
+  /*DurationSetup---------------------------------------------------*/
+  bytes = ((duration*1000000)/(1000000/pdbfreq))* 2; 
+  preceil = bytes/BUF_DIM;
+  scale = ceil(preceil);                                                    // round up preceil value
+  FILE_SIZE = (scale+2) * BUF_DIM;                                          // after writing FILE_SIZE uint16_t values to a file a new file is created
   /*----------------------------------------------------------------*/
 
   /*Mode Setup------------------------------------------------------*/
   pinMode(13, OUTPUT);                                                     // built-in LED is at PIN 13 in Teensy 3.5
-  pinMode                (                 adc_pin0, INPUT  );             // configure as analog input pins
-  pinMode                 (                adc_pin1, INPUT  );
+  pinMode(adc_pin0, INPUT);             // configure as analog input pins
+  pinMode(adc_pin1, INPUT);
   /*----------------------------------------------------------------*/
 
   /*ADC Setup-------------------------------------------------------*/
   adc.startSingleRead(adc_pin0, ADC_0);                                    // start ADC conversion
   adc.startSingleRead(adc_pin1, ADC_1);
 
-
   adc.setAveraging       (                              1  );              // ADC configuration
   adc.setResolution      (                           16, 0  );
   adc.setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED);
   adc.setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED  );
-
 
   adc.setAveraging (1, ADC_1);
   adc.setResolution (16, ADC_1);
@@ -205,8 +159,6 @@ void setup()
   dma1.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC1);
   /*----------------------------------------------------------------*/
   
-/*Buffer setup ---------------------------*/
-
   /*TCD-------------------------------------------------------------*/
 
   // configure TCD for first dma
@@ -214,8 +166,6 @@ void setup()
   dma.TCD->BITER    =           16 * 512;
   dma.TCD->DOFF     =                  2;                                  // set 2, one uint16_t value are two bytes
   dma.TCD->CSR      =               0x10;
-
-  dma.TCD->CSR |= DMA_TCD_CSR_INTMAJOR;                                    // enable interrupt after major loop completion
 
   dma.TCD->DADDR        = (volatile void*) &buffer [ 0 * 512]  ;
   dma.TCD->DLASTSGA     = (   int32_t    ) &tcd_mem[       1]  ;           // points to a 32-byte block that is loaded into the TCD memory of the DMA after major loop completion
@@ -242,8 +192,6 @@ void setup()
   dma1.TCD->DOFF     =                  2;
   dma1.TCD->CSR      =               0x10;
 
-  dma1.TCD->CSR |= DMA_TCD_CSR_INTMAJOR;
-
   dma1.TCD->DADDR        = (volatile void*) &buffer1 [ 0 * 512]    ;
   dma1.TCD->DLASTSGA     = (   int32_t    ) &tcd1_mem[       1]    ;
   memcpy ( &tcd1_mem[0], dma1.TCD , 32 ) ;
@@ -267,9 +215,6 @@ void setup()
   dma.enable();                                                             // enable DMA
   dma1.enable();
 
-  dma.attachInterrupt(dma0_isr);                                            // attach interrupt that is done after major loop completion
-  dma1.attachInterrupt(dma1_isr);
-
   adc.enableDMA(ADC_0);                                                     // connect DMA and ADC
   adc.enableDMA(ADC_1);
 
@@ -279,8 +224,27 @@ void setup()
   adc.adc1->stopPDB();
   adc.adc1->startPDB(pdbfreq);
 
+  NVIC_DISABLE_IRQ(IRQ_PDB);                                                // we don't want or need the PDB interrupt
+
   adc.adc0->printError();                                                  // print ADC configuration errors
   adc.adc1->printError();
+  /*----------------------------------------------------------------*/
+
+
+  /*Debug-----------------------------------------------------------*/
+  Serial.println(BUF_DIM);
+  Serial.println(FILE_SIZE);
+  Serial.print("bytes: ");
+  Serial.println(bytes);
+  Serial.println((uint32_t)&buffer[ 0], HEX);                               // debug: print memory location of buffer
+  Serial.println((uint32_t)&buffer[ 16 * 512], HEX);
+  Serial.println((uint32_t)&buffer[ 32 * 512], HEX);
+  Serial.println((uint32_t)&buffer[ 48 * 512], HEX);
+  Serial.println((uint32_t)&buffer1[ 0], HEX);
+  Serial.println((uint32_t)&buffer1[ 16 * 512], HEX);
+  Serial.println((uint32_t)&buffer1[ 32 * 512], HEX);
+  Serial.println((uint32_t)&buffer1[ 48 * 512], HEX);
+  Serial.println("----------------------------------");
   /*----------------------------------------------------------------*/
 
   /*Signal end of Setup method--------------------------------------*/
@@ -294,55 +258,27 @@ void setup()
 
 
 void loop() {  
-  delay(20);
-/*----------------------------------------------------------------*/
-  if (dma0_isr_counter != old_dma0_isr_counter)                             // check if buffer section can be written on microSD card
-  {
-    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[bufPtr], BUF_DIM))  // write buffer section on SD card;
-    {
-      sd.errorHalt("write dma0 failed");
-    } ;
-
-    last += BUF_DIM ;                                                       // increment last to control for file end
-
-    old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
-
-    bufPtr = 0x7fff & (bufPtr + 16 * 512);                                  // choose next buffer section
-
-    if (dma0_isr_counter > old_dma0_isr_counter + 3)                        // check if data has been lost
-    {
-      Serial.print("lost dma0 data");
-      Serial.println( dma0_isr_counter - old_dma0_isr_counter);
-    }
-  }
-
-  /*----------------------------------------------------------------*/     // equal routine for second buffer
-  if (dma1_isr_counter != old_dma1_isr_counter)
-  {
-    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[bufPtr1], BUF_DIM) )
-    {
+  while ( ((128*1024-1) & ( (int)dma.TCD->DADDR - last )) > BUF_DIM ){  
+    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[((last/2)&(64*1024-1))], BUF_DIM) ){ 
+      sd.errorHalt("write dma0 failed");    
+      }
+    last += BUF_DIM ;  
+    
+    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[((last1/2)&(64*1024-1))], BUF_DIM) ){ 
       sd.errorHalt("write dma1 failed");
-    } ;
-
-    last += BUF_DIM ;
-
-    old_dma1_isr_counter++;
-    bufPtr1 = 0x7fff & (bufPtr1 + 16 * 512);
-
-    if (dma1_isr_counter > old_dma1_isr_counter + 3)
-    {
-      Serial.print("lost dma1 data");
-      Serial.println( dma1_isr_counter - old_dma1_isr_counter);
-    }
-  }
-
-
+      }
+    last1 += BUF_DIM ;
+  } 
   /*----------------------------------------------------------------*/
   if ( last >= FILE_SIZE ) {                                              // check if end of file is reached
     file.close();
-    file1.close();
     last = 0;                                                             // reset last
     filestuff();                                                          // create new files for data logging
+  }
+  if ( last1 >= FILE_SIZE ) {                                              // check if end of file is reached
+    file1.close();
+    last1 = 0;                                                             // reset last
+    filestuff1();                                                          // create new files for data logging
   }
   /*----------------------------------------------------------------*/
 }
