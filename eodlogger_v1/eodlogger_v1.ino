@@ -15,29 +15,29 @@
 
 
 /*----------------------------------------------------------------*/
-const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
-uint32_t duration = 600;          // duration of each measure-cycle [s]
-unsigned long pause = 0;          // pause-duration
-String Name = "Log13";           // filename
-unsigned long debug_start;
+const uint32_t  pdbfreq   = 100000;       // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
+uint32_t        duration  = 60;           // duration of each measure-cycle [s]
+//unsigned long pause = 0;                // pause-duration
+String          Name      = "Log13";      // filename prefix
+unsigned long   debug_start;
 /*----------------------------------------------------------------*/
 
 
 /*PRÄ-------------------------------------------------------------*/
-uint32_t      BUF_DIM         = 32768 ;           //size of buffer that holds data from ADC
-uint32_t      FILE_SIZE       = 0 , last = 0;     //initial variables for filesize and pointer to...
-volatile size_t write_pos = 0;                    //points to last item in ring buffer
-volatile uint16_t adc_val = 0;                    //holds data from adc
-File file;                                        //file object for logging data
-uint32_t bytes = 0;
-float preceil = 0;
-float scale = 0;
+uint32_t      BUF_DIM     = 32768 ;           //size of buffer that holds data from ADC
+uint32_t      FILE_SIZE   = 0 , last = 0;     //initial variables for filesize and pointer to...
+//volatile size_t write_pos = 0;                    //points to last item in ring buffer
+//volatile uint16_t adc_val = 0;                    //holds data from adc
+File          file;                                        //file object for logging data
+uint32_t      bytes       = 0;
+float         preceil     = 0;
+float         scale       = 0;
 /*----------------------------------------------------------------*/
 
 
 
 /*PINS------------------------------------------------------------*/
-const uint8_t adc_pin = A9;     // digital pin 23 for singleended
+const uint8_t adc_pin   = A9;     // digital pin 23 for singleended
 const uint8_t diff_pin1 = A10; // digital pin A10 for differential
 const uint8_t diff_pin2 = A11; // digital pin A11 for differential
 /*----------------------------------------------------------------*/
@@ -61,6 +61,7 @@ void setup()
   debug_start = millis();
   Serial.begin(9600);  
   while (!Serial && ((millis() - debug_start) <= 5000));
+  
   /*TimeSetup-------------------------------------------------------*/
   if (RTC.read(tm)) {
     Serial.println("Begin Setup\n");
