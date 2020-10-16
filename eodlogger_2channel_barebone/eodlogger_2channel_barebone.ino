@@ -11,7 +11,7 @@
 
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
-uint32_t duration = 60*2;           // duration of each measure-cycle [s]
+uint32_t duration = 60;           // duration of each measure-cycle [s]
 String Name = "Log";              // file name prefix
 unsigned long debug_start;
 /*----------------------------------------------------------------*/
@@ -127,7 +127,7 @@ void setup()
 
   /*Mode Setup------------------------------------------------------*/
   pinMode(13, OUTPUT);                                                     // built-in LED is at PIN 13 in Teensy 3.5
-  pinMode(adc_pin0, INPUT);             // configure as analog input pins
+  pinMode(adc_pin0, INPUT);                                                // configure as analog input pins
   pinMode(adc_pin1, INPUT);
   /*----------------------------------------------------------------*/
 
@@ -183,7 +183,7 @@ void setup()
   dma.TCD->DLASTSGA     = (   int32_t    ) &tcd_mem[       0]  ;
   memcpy ( &tcd_mem[3], dma.TCD , 32 )  ;
 
-  memcpy ( dma.TCD ,  &tcd_mem[0], 32 ) ;                                  // 32-byte block that is transferred into the TCD memory of the DMA
+  memcpy ( dma.TCD ,  &tcd_mem[0], 32 ) ;                                  // 16-byte block that is transferred into the TCD memory of the DMA
 
   // equal configuration for TCD of  second dma1
 
@@ -258,13 +258,13 @@ void setup()
 
 
 void loop() {  
-  while ( ((128*1024-1) & ( (int)dma.TCD->DADDR - last )) > BUF_DIM ){  
-    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[((last/2)&(64*1024-1))], BUF_DIM) ){ 
+  while ( ((64*1024-1) & ( (int)dma.TCD->DADDR - last )) > BUF_DIM ){  
+    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[((last/2)&(32*1024-1))], BUF_DIM) ){ 
       sd.errorHalt("write dma0 failed");    
       }
     last += BUF_DIM ;  
     
-    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[((last1/2)&(64*1024-1))], BUF_DIM) ){ 
+    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[((last1/2)&(32*1024-1))], BUF_DIM) ){ 
       sd.errorHalt("write dma1 failed");
       }
     last1 += BUF_DIM ;
