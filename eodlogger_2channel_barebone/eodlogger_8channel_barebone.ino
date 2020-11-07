@@ -252,16 +252,16 @@ void setup()
 
   memcpy ( dma1.TCD ,  &tcd1_mem[0], 32 ) ;
   */
-  dma0->TCD->SADDR = &ADC0_RA;    // where to read from
-  dma0->TCD->SOFF = 0;            // source increment each transfer
-  dma0->TCD->ATTR = 0x101;
-  dma0->TCD->NBYTES = 2;     // bytes per transfer
-  dma0->TCD->SLAST = 0;
-  dma0->TCD->DADDR = &adcbuffer_0[0];// where to write to
-  dma0->TCD->DOFF = 2; 
-  dma0->TCD->DLASTSGA = -2*BUF_SIZE;
-  dma0->TCD->BITER = BUF_SIZE;
-  dma0->TCD->CITER = BUF_SIZE;
+  dma0->TCD->SADDR = &ADC0_RA;                    // (Transfer adress) where to read from
+  dma0->TCD->SOFF = 0;                            // (Source offset) source increment each transfer
+  dma0->TCD->ATTR = 0x101;                        //
+  dma0->TCD->NBYTES = 2;                          // bytes per transfer
+  dma0->TCD->SLAST = 0;                           // Last source adress adjustment
+  dma0->TCD->DADDR = &adcbuffer_0[0];             // (Destination adress) where to write to
+  dma0->TCD->DOFF = 2;                            // Destination Signed Offset field value, added after each completed write
+  dma0->TCD->DLASTSGA = -2*BUF_SIZE;              // Memory pointer to next TCD
+  dma0->TCD->BITER = BUF_SIZE;                    // Basic minor loop count
+  dma0->TCD->CITER = BUF_SIZE;                    // actual minor loop count
 
   dma1->TCD->SADDR = &ChannelADC_0[0];
   dma1->TCD->SOFF = 2;            // source increment each transfer (n bytes)
