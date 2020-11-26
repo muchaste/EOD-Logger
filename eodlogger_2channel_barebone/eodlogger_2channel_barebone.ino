@@ -11,7 +11,7 @@
 
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
-uint32_t duration = 60;           // duration of each measure-cycle [s]
+uint32_t duration = 10;           // duration of each measure-cycle [s]
 String Name = "Log";              // file name prefix
 unsigned long debug_start;
 /*----------------------------------------------------------------*/
@@ -89,7 +89,8 @@ void setup()
   /*Serial monitor--------------------------------------------------*/
   debug_start = millis();
   Serial.begin(115200);
-  while (!Serial && ((millis() - debug_start) <= 5000));
+  while ((millis() - debug_start) <= 5000);
+  //while (!Serial && ((millis() - debug_start) <= 5000));
   Serial.println("Begin Setup\n");
   /*----------------------------------------------------------------*/
 
@@ -279,6 +280,10 @@ void loop() {
     file1.close();
     last1 = 0;                                                             // reset last
     filestuff1();                                                          // create new files for data logging
+     // blink
+    digitalWrite(13, HIGH);
+    delay(5000);
+    digitalWrite(13, LOW);
   }
   /*----------------------------------------------------------------*/
 }

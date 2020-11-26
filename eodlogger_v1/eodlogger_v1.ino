@@ -16,7 +16,7 @@
 
 /*----------------------------------------------------------------*/
 const uint32_t  pdbfreq   = 100000;       // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
-uint32_t        duration  = 60;           // duration of each measure-cycle [s]
+uint32_t        duration  = 10;           // duration of each measure-cycle [s]
 //unsigned long pause = 0;                // pause-duration
 String          Name      = "Log13";      // filename prefix
 unsigned long   debug_start;
