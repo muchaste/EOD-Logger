@@ -8,6 +8,7 @@
 #include <array>              //use C++ array structs
 #include <SdFat.h>            // work with SD card
 
+#define SD_FAT_TYPE 3
 
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
@@ -17,7 +18,7 @@ unsigned long debug_start;
 /*----------------------------------------------------------------*/
 
 /*DECLARATIONS adc and pins---------------------------------------*/
-ADC adc;            // used to declare the adc.### object
+ADC *adc = new ADC();                           // Declare adc object. Update: adc as pointer, use adc->adcX
 
 /*PINS------------------------------------------------------------*/
 const uint8_t adc_pin0 = A2;                    // A2 is connected to ADC0
@@ -47,13 +48,20 @@ typeof(*dma1.TCD)  tcd1_mem[4] __attribute__ ((aligned (32))) ;
 
 
 /*DECLARATIONS microSD card files---------------------------------*/
-SdFatSdioEX sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
+// SDCARD_SS_PIN is defined for the built-in SD on some boards.
+#ifndef SDCARD_SS_PIN
+const uint8_t SD_CS_PIN = SS;
+#else  // SDCARD_SS_PIN
+const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
+#endif  // SDCARD_SS_PIN
+
+SdFs sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
 
 uint16_t fileNr = 0;                             // after a given duration a new file is created; fileNr is an index used for the filename
 uint16_t fileNr1 = 0;
 
-File file;                                       // file object for logging data
-File file1;                                      // file object for logging data
+FsFile file;                                       // file object for logging data
+FsFile file1;                                      // file object for logging data
 /*----------------------------------------------------------------*/
 
 
@@ -106,9 +114,9 @@ void setup()
   Serial.println(filename);
   Serial.println(filename1);
        
-  if (!  sd.begin()) {                                                        // start sdio interface to SD card
-    sd.initErrorHalt("SdFatSdio   begin() failed");
-  }    sd.chvol();
+  if (!sd.begin(SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SD_SCK_MHZ(50)))) {     // Update: initiate SD card with dedicated SPI config, CS pin
+    sd.errorHalt("begin failed");
+  }
   if (!file.open(fname, O_RDWR | O_CREAT)) {                                  // create SD card files
     sd.errorHalt("open dma0 failed");
   }
@@ -133,21 +141,21 @@ void setup()
   /*----------------------------------------------------------------*/
 
   /*ADC Setup-------------------------------------------------------*/
-  adc.startSingleRead(adc_pin0, ADC_0);                                    // start ADC conversion
-  adc.startSingleRead(adc_pin1, ADC_1);
+  adc->adc0->startSingleRead(adc_pin0);                                    // start ADC conversion (updated to pointer object)
+  adc->adc1->startSingleRead(adc_pin1);
 
-  adc.setAveraging       (                              1  );              // ADC configuration
-  adc.setResolution      (                           16, 0  );
-  adc.setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED);
-  adc.setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED  );
+  adc->adc0->setAveraging       (                              1  );       // ADC configuration
+  adc->adc0->setResolution      (                              16 );
+  adc->adc0->setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED);
+  adc->adc0->setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED  );
 
-  adc.setAveraging (1, ADC_1);
-  adc.setResolution (16, ADC_1);
-  adc.setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED, ADC_1);
-  adc.setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED, ADC_1  );
+  adc->adc1->setAveraging       (                                1);
+  adc->adc1->setResolution      (                               16);
+  adc->adc1->setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED);
+  adc->adc1->setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED  );
 
-  adc.setReference(ADC_REFERENCE::REF_3V3, ADC_0);                         // set analog reference
-  adc.setReference(ADC_REFERENCE::REF_3V3, ADC_1);
+  adc->adc0->setReference(ADC_REFERENCE::REF_3V3);                         // set analog reference
+  adc->adc1->setReference(ADC_REFERENCE::REF_3V3);
   /*----------------------------------------------------------------*/
 
   /* DMA ----------------------------------------------------------*/
@@ -216,19 +224,19 @@ void setup()
   dma.enable();                                                             // enable DMA
   dma1.enable();
 
-  adc.enableDMA(ADC_0);                                                     // connect DMA and ADC
-  adc.enableDMA(ADC_1);
+  adc->adc0->enableDMA();                                                     // connect DMA and ADC
+  adc->adc1->enableDMA();
 
-  adc.adc0->stopPDB();                                                      // start PDB conversion trigger
-  adc.adc0->startPDB(pdbfreq);
+  adc->adc0->stopPDB();                                                      // start PDB conversion trigger
+  adc->adc0->startPDB(pdbfreq);
 
-  adc.adc1->stopPDB();
-  adc.adc1->startPDB(pdbfreq);
+  adc->adc1->stopPDB();
+  adc->adc1->startPDB(pdbfreq);
 
   NVIC_DISABLE_IRQ(IRQ_PDB);                                                // we don't want or need the PDB interrupt
 
-  adc.adc0->printError();                                                  // print ADC configuration errors
-  adc.adc1->printError();
+//  adc->adc0->printError();                                                  // print ADC configuration errors
+//  adc->adc1->printError();
   /*----------------------------------------------------------------*/
 
 
