@@ -29,8 +29,8 @@ unsigned long processSyncMessage() {
 /*----------------------------------------------------------------*/
 void digitalClockDisplay() {
   Serial.print(hour());
-  printDigits(minute());
-  printDigits(second());
+  Serial.print(minute());
+  Serial.print(second());
   Serial.print(" ");
   Serial.print(day());
   Serial.print(" ");

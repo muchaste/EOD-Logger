@@ -8,7 +8,6 @@
 #include <array>              //use C++ array structs
 #include <SdFat.h>            // work with SD card
 
-#define SD_FAT_TYPE 3
 
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
@@ -46,14 +45,42 @@ typeof(*dma.TCD)  tcd_mem[4] __attribute__ ((aligned (32))) ;   // alignment of 
 typeof(*dma1.TCD)  tcd1_mem[4] __attribute__ ((aligned (32))) ;
 /*----------------------------------------------------------------*/
 
+/*DECLARATIONS for Interrupt Service Routine (ISR)----------------*/
+// The transfer of data from the buffer to the SD card is initiated via an interrupt service routine
+
+uint32_t dma0_isr_counter = 0;                  // counter that will be incremented after a major loop completion (hardware)
+uint32_t dma1_isr_counter = 0;
+
+uint32_t old_dma0_isr_counter = 0;              // counter that is compared to the dma0_isr_counter to register the hardware increment
+uint32_t old_dma1_isr_counter = 0;
+
+uint32_t bufPtr = 0;                            // pointer to the buffer section in which the data is currently transferred
+uint32_t bufPtr1 = 0;
+/*----------------------------------------------------------------*/
+
+//  DMA interrupt service routines
+/*----------------------------------------------------------------*/
+void dma0_isr(void) {                              // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+  dma.clearInterrupt();
+  dma0_isr_counter++;
+}
+
+void dma1_isr(void) {
+  dma1.clearInterrupt();
+  dma1_isr_counter++;
+}
+/*----------------------------------------------------------------*/
 
 /*DECLARATIONS microSD card files---------------------------------*/
 // SDCARD_SS_PIN is defined for the built-in SD on some boards.
-#ifndef SDCARD_SS_PIN
-const uint8_t SD_CS_PIN = SS;
-#else  // SDCARD_SS_PIN
-const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
-#endif  // SDCARD_SS_PIN
+//#ifndef SDCARD_SS_PIN
+//const uint8_t SD_CS_PIN = 10;                 // set cs pin to 10 for SPI communication with SD card (ext.)
+//#else  // SDCARD_SS_PIN
+//const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
+//#endif  // SDCARD_SS_PIN
+#define SD_CONFIG SdioConfig(FIFO_SDIO)
+//#define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SD_SCK_MHZ(50))
+
 
 SdFs sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
 
@@ -114,7 +141,7 @@ void setup()
   Serial.println(filename);
   Serial.println(filename1);
        
-  if (!sd.begin(SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SD_SCK_MHZ(50)))) {     // Update: initiate SD card with dedicated SPI config, CS pin
+  if (!sd.begin(SD_CONFIG)) {     // Update: initiate SD card with FIFO_SDIO config
     sd.errorHalt("begin failed");
   }
   if (!file.open(fname, O_RDWR | O_CREAT)) {                                  // create SD card files
@@ -175,6 +202,7 @@ void setup()
   dma.TCD->BITER    =           16 * 512;
   dma.TCD->DOFF     =                  2;                                  // set 2, one uint16_t value are two bytes
   dma.TCD->CSR      =               0x10;
+  dma.TCD->CSR |= DMA_TCD_CSR_INTMAJOR;                                     // enable interrupt after major loop completion
 
   dma.TCD->DADDR        = (volatile void*) &buffer [ 0 * 512]  ;
   dma.TCD->DLASTSGA     = (   int32_t    ) &tcd_mem[       1]  ;           // points to a 32-byte block that is loaded into the TCD memory of the DMA after major loop completion
@@ -200,6 +228,7 @@ void setup()
   dma1.TCD->BITER    =           16 * 512;
   dma1.TCD->DOFF     =                  2;
   dma1.TCD->CSR      =               0x10;
+  dma1.TCD->CSR |= DMA_TCD_CSR_INTMAJOR;
 
   dma1.TCD->DADDR        = (volatile void*) &buffer1 [ 0 * 512]    ;
   dma1.TCD->DLASTSGA     = (   int32_t    ) &tcd1_mem[       1]    ;
@@ -223,7 +252,10 @@ void setup()
   /*Start DMA and ADC-----------------------------------------------*/
   dma.enable();                                                             // enable DMA
   dma1.enable();
-
+  
+  dma.attachInterrupt(dma0_isr);                                            // attach interrupt that is done after major loop completion
+  dma1.attachInterrupt(dma1_isr);
+  
   adc->adc0->enableDMA();                                                     // connect DMA and ADC
   adc->adc1->enableDMA();
 
@@ -232,27 +264,11 @@ void setup()
 
   adc->adc1->stopPDB();
   adc->adc1->startPDB(pdbfreq);
-
-  NVIC_DISABLE_IRQ(IRQ_PDB);                                                // we don't want or need the PDB interrupt
-
-//  adc->adc0->printError();                                                  // print ADC configuration errors
-//  adc->adc1->printError();
   /*----------------------------------------------------------------*/
 
 
   /*Debug-----------------------------------------------------------*/
   Serial.println(BUF_DIM);
-  Serial.println(FILE_SIZE);
-  Serial.print("bytes: ");
-  Serial.println(bytes);
-  Serial.println((uint32_t)&buffer[ 0], HEX);                               // debug: print memory location of buffer
-  Serial.println((uint32_t)&buffer[ 16 * 512], HEX);
-  Serial.println((uint32_t)&buffer[ 32 * 512], HEX);
-  Serial.println((uint32_t)&buffer[ 48 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 0], HEX);
-  Serial.println((uint32_t)&buffer1[ 16 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 32 * 512], HEX);
-  Serial.println((uint32_t)&buffer1[ 48 * 512], HEX);
   Serial.println("----------------------------------");
   /*----------------------------------------------------------------*/
 
@@ -267,16 +283,20 @@ void setup()
 
 
 void loop() {  
-  while ( ((64*1024-1) & ( (int)dma.TCD->DADDR - last )) > BUF_DIM ){  
+  if (dma0_isr_counter != old_dma0_isr_counter){                              // check if buffer section can be written on microSD card
     if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[((last/2)&(32*1024-1))], BUF_DIM) ){ 
       sd.errorHalt("write dma0 failed");    
-      }
+    }
+
     last += BUF_DIM ;  
-    
+    old_dma0_isr_counter++;                                                  // increment counter so that it matches dma0_isr_counter
+  }
+  if (dma1_isr_counter != old_dma1_isr_counter){
     if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[((last1/2)&(32*1024-1))], BUF_DIM) ){ 
       sd.errorHalt("write dma1 failed");
-      }
+    }
     last1 += BUF_DIM ;
+    old_dma1_isr_counter++;
   } 
   /*----------------------------------------------------------------*/
   if ( last >= FILE_SIZE ) {                                              // check if end of file is reached

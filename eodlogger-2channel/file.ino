@@ -2,7 +2,6 @@
 /*----------------------------------------------------------------*/
 void filestuff(String Date) {
   Serial.print(Date);
-
   fileNr++;
   String filename = Date + "_dma0_" + fileNr + ".bin";
   char fname[30];
