@@ -99,8 +99,8 @@ SdFs sd;                                          // used to declare the sd (SdF
 FsFile meta;                                      // file object for metadata .txt
 FsFile file;                                      // file object for logging data
 FsFile file1;                                     // file object for logging data
-String meta_name = ID + "_metadata.txt";
-char mname[30];
+String meta_name = ID + "_metadata.txt";          // construct filename for metadata file
+char mname[30];                                   // char array to store metadata filename
 /*----------------------------------------------------------------*/
 
 /*FUNCTIONS to create files---------------------------------------*/
@@ -196,7 +196,8 @@ void setup()
   }
   meta.flush();
   meta.close();
-
+  /*----------------------------------------------------------------*/
+  
   /*FileSetup-------------------------------------------------------*/
   String filename = ID + "_c1_" + Date + ".bin";                        // create filenames
   char fname[30];
@@ -345,6 +346,7 @@ void setup()
     digitalWrite(13, LOW);
     delay(300);
   }
+  /*----------------------------------------------------------------*/
 }
 
 
