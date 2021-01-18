@@ -17,14 +17,14 @@
 /*----------------------------------------------------------------*/
 const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
 uint32_t duration = 10;           // duration of each measure-cycle [s]
-String Name = "Log";              // file name prefix
+String ID = "Log";                // file name prefix
 unsigned long debug_start;
-bool single_ended = false;         // switch between single-ended and differential recording
+bool single_ended = false;        // switch between single-ended and differential recording
 /*----------------------------------------------------------------*/
 
 /*METADATA--------------------------------------------------------*/
 String location = "Tierhaus";
-String experimenter = "Stefan Mucha";
+String experimenter = "Dr. Jekyll";
 String experiment_name = "24h Activity measurements";
 const int amp_gain = 5;
 const int high_pass = 300;
@@ -82,8 +82,9 @@ void dma0_isr(void) {                           // method that deletes interrupt
 //#define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SD_SCK_MHZ(50))
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
 
-SdFs sd;                                    // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
-FsFile file;                                       // file object for logging data
+SdFs sd;                                          // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
+FsFile file;                                      // file object for logging data
+FsFile meta;                                      // file object for metadata
 String meta_name = ID + "_metadata.txt";
 char mname[30];
 /*----------------------------------------------------------------*/
