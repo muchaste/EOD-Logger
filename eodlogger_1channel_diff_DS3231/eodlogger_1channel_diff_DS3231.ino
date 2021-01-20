@@ -15,7 +15,7 @@
 #include "RTClib.h"           // library for easy implementation of DS3231 RTC
 
 /*----------------------------------------------------------------*/
-const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
+const uint32_t pdbfreq = 50000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
 uint32_t duration = 10;           // duration of each measure-cycle [s]
 String ID = "Log";                // file name prefix
 unsigned long debug_start;
@@ -45,9 +45,8 @@ const uint8_t diff_pin2 = A11;                  // digital pin A11 for different
 std::array<volatile uint16_t, (uint32_t)128 * 512> buffer __attribute__ ((aligned (32 * 1024)));      // size of buffer is limited due to the Teensy's program memory
 
 uint32_t      BUF_DIM       = 32768;                                          //size of buffer that holds data from ADC
-uint32_t      FILE_SIZE     = 0;                                                  //initial variables for filesize and pointer to...
+uint32_t      FILE_SIZE     = 0;                                              //initial variables for filesize and pointer to...
 uint32_t      last          = 0;     
-uint32_t      last1         = 0;     
 uint32_t      bytes         = 0;
 float         preceil       = 0;
 float         scale         = 0;
@@ -72,7 +71,7 @@ uint32_t bufPtr = 0;                            // pointer to the buffer section
 void dma0_isr(void) {                           // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
   dma.clearInterrupt();
   dma0_isr_counter++;
-  Serial.println(".");
+  //Serial.println(".");
 }
 /*----------------------------------------------------------------*/
 
@@ -167,7 +166,7 @@ void setup()
   } else {
     meta.println("Differential recording");
   }
-  meta.flush();
+//  meta.flush(); TEST - unnecessary?
   meta.close();
   /*----------------------------------------------------------------*/
   
