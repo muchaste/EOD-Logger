@@ -16,7 +16,7 @@
 
 
 /*SETTINGS--------------------------------------------------------*/
-const uint32_t pdbfreq = 100000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
+const uint32_t pdbfreq = 50000;  // sampling speed [Hz] max ~300MHz - actually the trigger frequency of the programmable delay block
 uint32_t duration = 10;           // duration of each measure-cycle [s]
 String ID = "Log";                // ID, used as file name prefix
 unsigned long debug_start;
@@ -25,7 +25,7 @@ bool single_ended = true;         // switch between single-ended and differentia
 
 /*METADATA--------------------------------------------------------*/
 String location = "Tierhaus";
-String experimenter = "Stefan Mucha";
+String experimenter = "Dr. Doom";
 String experiment_name = "24h Activity measurements";
 const int amp_gain = 5;
 const int high_pass = 300;
@@ -289,7 +289,6 @@ void setup()
   memcpy ( dma.TCD ,  &tcd_mem[0], 32 ) ;                                  // 16-byte block that is transferred into the TCD memory of the DMA
 
   // equal configuration for TCD of  second dma1
-
   dma1.TCD->CITER    =           16 * 512;
   dma1.TCD->BITER    =           16 * 512;
   dma1.TCD->DOFF     =                  2;
@@ -315,6 +314,15 @@ void setup()
   memcpy ( dma1.TCD ,  &tcd1_mem[0], 32 ) ;
   /*----------------------------------------------------------------*/
 
+  /*Signal end of Setup method--------------------------------------*/
+  for (int i = 0; i < 5; i++){                                             // visual feedback, blink 5 times if the setup was completed
+    digitalWrite(13, HIGH);
+    delay(300);
+    digitalWrite(13, LOW);
+    delay(300);
+  }
+  /*----------------------------------------------------------------*/
+
   /*Start DMA and ADC-----------------------------------------------*/
   dma.enable();                                                             // enable DMA
   dma1.enable();
@@ -332,39 +340,33 @@ void setup()
   adc->adc1->startPDB(pdbfreq);
   /*----------------------------------------------------------------*/
 
-
   /*Debug-----------------------------------------------------------*/
   Serial.print("Buffer dimension (bytes): ");
   Serial.println(BUF_DIM);
   Serial.println("----------------------------------");
   /*----------------------------------------------------------------*/
 
-  /*Signal end of Setup method--------------------------------------*/
-  for (int i = 0; i < 5; i++){                                             // visual feedback, blink 5 times if the setup was completed
-    digitalWrite(13, HIGH);
-    delay(300);
-    digitalWrite(13, LOW);
-    delay(300);
-  }
-  /*----------------------------------------------------------------*/
+
 }
 
 
 void loop() {  
   if (dma0_isr_counter != old_dma0_isr_counter){                              // check if buffer section can be written on microSD card
-    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[((last/2)&(32*1024-1))], BUF_DIM) ){ 
+    if (BUF_DIM != (uint32_t)file.write( (char*)&buffer[bufPtr], BUF_DIM) ){ 
       sd.errorHalt("write dma0 failed");    
     }
 
     last += BUF_DIM ;  
-    old_dma0_isr_counter++;                                                  // increment counter so that it matches dma0_isr_counter
+    old_dma0_isr_counter++;                                                   // increment counter so that it matches dma0_isr_counter
+    bufPtr = 0x7fff & (bufPtr + 16 * 512);                                    // choose next buffer section
   }
   if (dma1_isr_counter != old_dma1_isr_counter){
-    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[((last1/2)&(32*1024-1))], BUF_DIM) ){ 
+    if (BUF_DIM != (uint32_t)file1.write( (char*)&buffer1[bufPtr1], BUF_DIM) ){ 
       sd.errorHalt("write dma1 failed");
     }
     last1 += BUF_DIM ;
     old_dma1_isr_counter++;
+    bufPtr1 = 0x7fff & (bufPtr1 + 16 * 512);
   } 
   /*----------------------------------------------------------------*/
   if ( last >= FILE_SIZE ) {                                              // check if end of file is reached
@@ -376,9 +378,5 @@ void loop() {
     file1.close();
     last1 = 0;                                                             // reset last
     filestuff1();                                                          // create new files for data logging
-     // blink
-    digitalWrite(13, HIGH);
-    delay(5000);
-    digitalWrite(13, LOW);
   }
 }
