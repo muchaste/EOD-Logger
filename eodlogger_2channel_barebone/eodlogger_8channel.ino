@@ -13,12 +13,16 @@
 #define BUF_DIM  16384        //size of buffer that holds data from ADC, size = samples 
 #define Major_size 1024       // Major Loop size: 512 Samples * 2 bytes
 
+elapsedMillis TEST;
+
 /*DECLARATIONS ADC and Pins---------------------------------------*/
 ADC *adc = new ADC();                                             // used to declare the adc->### object
-const uint16_t ChannelsCfg_0 [] =  { 0x46, 0x47, 0x4F, 0x44 };    //ADC0: A6, A7, A8, A9 Which pins are used for measurement on ADC0
-const uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };    //ADC1: A16, A17, A18, A19
+uint16_t ChannelsCfg_0 [] =  { 0x46, 0x47, 0x4F, 0x44 };          //ADC0: A6, A7, A8, A9 Which pins are used for measurement on ADC0
+uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };          //ADC1: A16, A17, A18, A19
+const uint16_t ChannelPinNumber0 = 4;                             //Needed for reordering
+const uint16_t ChannelPinNumber1 = 4;                             //Both need to be equal, because PDB gets intialized simultanously for ADC0 and ADC1
 
-const uint32_t pdbfreq = 10000;                                   //Sample Frequency
+const uint32_t pdbfreq = 10000;                                   //Sample Frequency If you use 4 Pins on 1 ADC max 12kHz
 
 volatile int buffer_dma_position = 0;                             //Pointer position in DMA Buffer, used with partition to determine where to write
 volatile int buffer_dma1_position = 0;
@@ -38,7 +42,7 @@ FsFile file;                                      // file object for logging dat
 
 uint32_t      FILE_SIZE       = 0;                // filesize DMA-Buffer*times_buffer
 uint32_t      last            = 0;                // coutner uint16_t values that are written to SD card
-const int     times_buffer    = 12;               // creation of a file based on a multiple of the buffer size
+const int     times_buffer    = 1000;               // creation of a file based on a multiple of the buffer size
 
 uint32_t dma0_isr_counter = 0;                    // counter that will be incremented after a major loop completion (hardware)
 uint32_t old_dma0_isr_counter = 0;                // counter that is compared to the dma0_isr_counter to register the hardware increment
@@ -72,15 +76,18 @@ DMAChannel dma1_switch;
 
 void setup() 
 {
+/*Reorder---------------------------------------------------------*/                  // Reorders Pin arrays to match order in WAV-FILE
+  reorder(ChannelsCfg_0, ChannelPinNumber0);
+  reorder(ChannelsCfg_1, ChannelPinNumber1);
 /*Serial monitor--------------------------------------------------*/
   debug_start = millis();
   Serial.begin(115200);
   while (!Serial && ((millis() - debug_start) <= 5000));
   Serial.println("Begin Setup\n");
 /*Time and File setup---------------------------------------------*/
-  setup_RTC();                  
+  setup_RTC(); 
+  FILE_SIZE = times_buffer * BUF_DIM;                                 // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels                 
   setup_File();
-  FILE_SIZE = times_buffer * BUF_DIM;                                 // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels
 /*LED pin, Default Buffer-----------------------------------------*/
   pinMode(13, OUTPUT);                                                // built-in LED is at PIN 13 in Teensy 3.5
     // clear buffer 
@@ -126,9 +133,8 @@ void loop() {
     conversionBufPtr1++;
   }
 /*----------------------------------------------------------------*/
-
     file.write(tempbuffer, sizeof(tempbuffer));                             // write buffer section on SD card;
-
+    
     last += partition_sample_amount * 2 ;                                                 // increment last to control for file end
 
     old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
@@ -155,7 +161,6 @@ void loop() {
     file.close();
     last = 0;                                                               // reset last
     filestuff();                                                            // create new files for data logging
-
   }
 }
 /*----------------------------------------------------------------*/
@@ -180,9 +185,6 @@ void setup_adc() {
    SIM_SCGC6 |= SIM_SCGC6_PDB;
    setPdbFreq();                                                            // Modified Version of startPDB to trigger both ADC's at once
    startPdb();    
-  
-  ADC0_SC1A = ChannelsCfg_0[3];
-  ADC1_SC1A = ChannelsCfg_1[3];
                                                              
 }
 
@@ -198,7 +200,7 @@ void setup_dma(){
   dma.interruptAtCompletion();
   dma.attachInterrupt(dma0_isr); 
  
-  dma_switch.sourceBuffer(ChannelsCfg_0, sizeof(ChannelsCfg_0));
+  dma_switch.sourceBuffer(&ChannelsCfg_0[0], sizeof(ChannelsCfg_0));
   dma_switch.destination(ADC0_SC1A);
   dma_switch.transferSize(2);
   dma_switch.triggerAtTransfersOf(dma);
@@ -213,7 +215,7 @@ void setup_dma(){
   dma1.interruptAtCompletion();
   dma1.attachInterrupt(dma1_isr); 
  
-  dma1_switch.sourceBuffer(ChannelsCfg_1, sizeof(ChannelsCfg_1));
+  dma1_switch.sourceBuffer(&ChannelsCfg_1[0], sizeof(ChannelsCfg_1));
   dma1_switch.destination(ADC1_SC1A);
   dma1_switch.transferSize(2);
   dma1_switch.triggerAtTransfersOf(dma1);
@@ -291,8 +293,8 @@ unsigned long processSyncMessage() {
   if (Serial.find(TIME_HEADER)) {
     pctime = Serial.parseInt();
     return pctime;
-    if ( pctime < DEFAULT_TIME) {                                               // check the value is a valid time (greater than Jan 1 2013)
-      pctime = 0L; // return 0 to indicate that the time is not valid
+    if ( pctime < DEFAULT_TIME) {                                              // check the value is a valid time (greater than Jan 1 2013)
+      pctime = 0L;                                                             // return 0 to indicate that the time is not valid
     }
   }
   return pctime;
@@ -314,7 +316,6 @@ void digitalClockDisplay() {
  void setup_File(){
   
   String Date = String(year()) + "." + String(month()) + "." + String(day()) + "-" + String(hour()) + "." + String(minute()) + "." + String(second());
-
   String filename = Date + "_dma0_" + fileNr + ".wav";                                // create filenames
   char fname[30];
   filename.toCharArray(fname, 30);
@@ -330,8 +331,6 @@ void digitalClockDisplay() {
   }
 
   write_wav_header();
-
-  delay(10);
   
  }
 
@@ -412,16 +411,28 @@ void startPdb() {
 }
 
 void setPdbFreq() {
-    constexpr uint32_t prescaler = 7;                                                              // from 0 to 7: factor of 1, 2, 4, 8, 16, 32, 64 or 128
-    constexpr uint32_t prescaler_multiplier = 1;                                                   // from 0 to 3: factor of 1, 10, 20 or 40
+    constexpr uint32_t prescaler = 7;                                                                                             // from 0 to 7: factor of 1, 2, 4, 8, 16, 32, 64 or 128
+    constexpr uint32_t prescaler_multiplier = 1;                                                                                  // from 0 to 3: factor of 1, 10, 20 or 40
     constexpr uint32_t pdb_trigger_frequency = pdbfreq;
-    constexpr uint32_t mod = (F_BUS / 128 / 10 / pdb_trigger_frequency);
+    constexpr uint32_t amount_pins_channel = ChannelPinNumber0;
+    constexpr uint32_t mod = (F_BUS / 128 / 10 / pdb_trigger_frequency / amount_pins_channel);
+    Serial.print("MOD : ");
+    Serial.println(mod);
     static_assert(mod <= 0x10000, "Prescaler insufficient.");
     PDB0_MOD = (uint16_t)(mod-1);
     constexpr uint32_t PDB_CHnC1_TOS_1 = 0x0100;
     constexpr uint32_t PDB_CHnC1_EN_1 = 0x01;
-    PDB0_CH0C1 = PDB_CHnC1_TOS_1 | PDB_CHnC1_EN_1;                                                // PDB triggers ADC0 SC1A
-    PDB0_CH1C1 = PDB_CHnC1_TOS_1 | PDB_CHnC1_EN_1;                                                // PDB triggers ADC1 SC1A
+    PDB0_CH0C1 = PDB_CHnC1_TOS_1 | PDB_CHnC1_EN_1;                                                                                 // PDB triggers ADC0 SC1A
+    PDB0_CH1C1 = PDB_CHnC1_TOS_1 | PDB_CHnC1_EN_1;                                                                                 // PDB triggers ADC1 SC1A
     PDB0_SC = PDB_SC_PRESCALER(prescaler) | PDB_SC_MULT(prescaler_multiplier) | PDB_SC_LDOK | 
-              PDB_SC_TRGSEL(0b1111) | PDB_SC_PDBEN | PDB_SC_LDMOD(0) | PDB_SC_CONT;
+              PDB_SC_TRGSEL(0b1111) | PDB_SC_PDBEN | PDB_SC_LDMOD(0) | PDB_SC_CONT;                                                // PDB triggers ADC1 SC1A
+}
+
+void reorder(uint16_t channel[], uint16_t pins){
+  uint16_t temp = channel[0];
+
+  for(int i = 1; i < pins; i++){
+    channel[i-1] = channel[i];}
+    
+  channel[pins-1] = temp;
 }
