@@ -22,7 +22,7 @@ uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };          //ADC1: A16, A
 const uint16_t ChannelPinNumber0 = 4;                             //Needed for reordering
 const uint16_t ChannelPinNumber1 = 4;                             //Both need to be equal, because PDB gets intialized simultanously for ADC0 and ADC1
 
-const uint32_t pdbfreq = 12000;                                   
+const uint32_t pdbfreq = 80000;                                   
 
 volatile int buffer_dma_position = 0;                             //Pointer position in DMA Buffer, used with partition to determine where to write
 volatile int buffer_dma1_position = 0;
@@ -42,7 +42,7 @@ FsFile file;                                      // file object for logging dat
 
 uint32_t      FILE_SIZE       = 0;                // filesize DMA-Buffer*times_buffer
 uint32_t      last            = 0;                // coutner uint16_t values that are written to SD card
-const int     times_buffer    = 100;               // creation of a file based on a multiple of the buffer size
+const int     times_buffer    = 10 * 2;               // creation of a file based on a multiple of the buffer size
 
 uint32_t dma0_isr_counter = 0;                    // counter that will be incremented after a major loop completion (hardware)
 uint32_t old_dma0_isr_counter = 0;                // counter that is compared to the dma0_isr_counter to register the hardware increment
@@ -109,8 +109,6 @@ void setup()
 /*----------------------------------------------------------------*/
 }
 void loop() { 
-  Serial.println(dma0_isr_counter);
-  Serial.println(old_dma0_isr_counter);
   if (dma0_isr_counter != old_dma0_isr_counter && dma1_isr_counter != old_dma1_isr_counter)                              // check if buffer section can be written on microSD card
   {
 /*Conversion------------------------------------------------------*/
@@ -130,7 +128,6 @@ void loop() {
     file.write(tempbuffer, sizeof(tempbuffer));                             // write buffer section on SD card;
     
     last += partition_sample_amount * 2 ;                                                 // increment last to control for file end
-
     old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
     old_dma1_isr_counter++;
 
@@ -228,8 +225,8 @@ void dma0_isr() {                                                             //
     buffer_dma_position = buffer_dma_position + 512;
     if(buffer_dma_position == partition){
       dma0_isr_counter++;
-      partition += partition;
-      if(partition == BUF_DIM){
+      partition = partition + partition_sample_amount;
+      if(partition == BUF_DIM + partition_sample_amount){
         partition = BUF_DIM / amount_SD_writes;
       }
     }
@@ -240,7 +237,6 @@ void dma0_isr() {                                                             //
     else{
     dma.TCD->DADDR = &buffer[buffer_dma_position];
     }
-    dma0_isr_counter++;
     dma.clearInterrupt();
     dma.enable();
 }
@@ -249,8 +245,8 @@ void dma1_isr() {                                                             //
     buffer_dma1_position = buffer_dma1_position + 512;
     if(buffer_dma1_position == partition1){
       dma1_isr_counter++;
-      partition1 += partition1;
-      if(partition1 == BUF_DIM){
+      partition1 = partition1 + partition_sample_amount;
+      if(partition1 == BUF_DIM + partition_sample_amount){
         partition1 = BUF_DIM / amount_SD_writes;
       }
     }
@@ -261,7 +257,6 @@ void dma1_isr() {                                                             //
     else{
     dma1.TCD->DADDR = &buffer1[buffer_dma1_position];
     }
-    dma1_isr_counter++;
     dma1.clearInterrupt();
     dma1.enable();
 }
@@ -349,7 +344,7 @@ void digitalClockDisplay() {
 void write_wav_header(){
 
   uint16_t resolution0 = adc->adc0->getResolution();
-  uint32_t SubtwoChunkSize = FILE_SIZE  * (resolution0/8);                        // =NumSamples * NumChannels * BitsPerSample/8. This is the number of bytes in the data. Number of samples is per Channel, we therefore divide the total FILE_SIZE by the number of Channels --> makes calculation redundant but kept for clarity.
+  uint32_t SubtwoChunkSize = (FILE_SIZE*2)  * (resolution0/8);                        // =NumSamples * NumChannels * BitsPerSample/8. This is the number of bytes in the data. Number of samples is per Channel, we therefore divide the total FILE_SIZE by the number of Channels --> makes calculation redundant but kept for clarity.
 
   
   //RIFF chunk descriptor
