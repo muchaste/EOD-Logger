@@ -24,12 +24,31 @@ const uint16_t ChannelPinNumber1 = 4;                             //Both need to
 
 const uint32_t pdbfreq = 80000;                                   
 
-volatile int buffer_dma_position = 0;                             //Pointer position in DMA Buffer, used with partition to determine where to write
+volatile int buffer_dma0_position = 0;                             //Pointer position in DMA Buffer, used with partition to determine where to write
 volatile int buffer_dma1_position = 0;
 volatile int amount_SD_writes = 8;                                //How often do you want to write
 volatile int partition = BUF_DIM / amount_SD_writes;
 volatile int partition1 = BUF_DIM / amount_SD_writes;
 volatile int partition_sample_amount = BUF_DIM / amount_SD_writes;
+
+/*WAV-Header structure---------------------------------------------*/
+struct fileheader {
+  char  mainChunkId[4];                 /* "RIFF"                                                 */
+  uint32_t  mainChunkSize;              /* file length in bytes                                   */
+  char  mainChunkFormat[4];             /* "WAVE"                                                 */
+  char  fmtChunkId[4];                  /* "fmt "                                                 */
+  uint32_t  fmtChunkSize;               /* size of FMT chunk in bytes (usually 16 for PCM)        */
+  uint16_t format_tag;                  /* 1=PCM, 257=Mu-Law, 258=A-Law, 259=ADPCM                */
+  uint16_t num_chans;                   /* Number of channels/pins used                           */
+  uint32_t  sample_rate;                /* Sampling rate in samples per second                    */
+  uint32_t  byteRate;                   /* Byte rate = SampleRate * NumChannels * BitsPerSample/8 */
+  uint16_t blockAlign;                  /* 2=16-bit mono, 4=16-bit stereo                         */
+  uint16_t bits_per_samp;               /* Number of bits per sample                              */
+  char  SubtwoChunkId[4];               /* "data"                                                 */
+  uint32_t  SubtwoChunkSize;            /* data length in bytes (filelength - 44)                 */
+} wavheader;
+
+/*DECLARATIONS SD-card and File-----------------------------------*/
 
 /*DECLARATIONS SD-card and File-----------------------------------*/
 
@@ -67,8 +86,8 @@ DMAMEM static volatile uint16_t __attribute__((aligned(BUF_DIM))) buffer[BUF_DIM
 DMAMEM static volatile uint16_t __attribute__((aligned(BUF_DIM))) buffer1[BUF_DIM];
 unsigned long debug_start;
 
-DMAChannel dma;                                                                       // used to declare the dma.### object for the first channel
-DMAChannel dma_switch;                                                                //DMA channel linked to DMA to switch pins
+DMAChannel dma0;                                                                       // used to declare the dma.### object for the first channel
+DMAChannel dma0_switch;                                                                //DMA channel linked to DMA to switch pins
 DMAChannel dma1;
 DMAChannel dma1_switch;
 
@@ -76,6 +95,9 @@ DMAChannel dma1_switch;
 
 void setup() 
 {
+ /*WAV-Header-----------------------------------------------------*/ 
+  FILE_SIZE = times_buffer * BUF_DIM;                                                 // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels
+  setupWAVHeader();
 /*Reorder---------------------------------------------------------*/                  // Reorders Pin arrays to match order in WAV-FILE
   reorder(ChannelsCfg_0, ChannelPinNumber0);
   reorder(ChannelsCfg_1, ChannelPinNumber1);
@@ -84,24 +106,23 @@ void setup()
   Serial.begin(115200);
   while (!Serial && ((millis() - debug_start) <= 5000));
   Serial.println("Begin Setup\n");
-/*Time, File setup and Default Buffer-----------------------------*/
-  for (int j = 0; j < BUF_DIM; ++j){                                  //Set values of the DMA buffer to a default value.
+/*Time and File setup---------------------------------------------*/
+  setupRTC();                  
+  setupFile();
+/*LED pin---------------------------------------------------------*/
+  pinMode(13, OUTPUT);                                                                // built-in LED is at PIN 13 in Teensy 3.5
+  
+  for (int j = 0; j < BUF_DIM; ++j){                                                  //Set values of the DMA buffer to a default value.
       buffer[j] = 30000;}
   for(int k = 0; k < BUF_DIM; ++k){
     buffer1[k] = 30000;}
-    
-  setup_RTC(); 
-  FILE_SIZE = times_buffer * BUF_DIM;                                 // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels                 
-  setup_File();
-/*LED pin---------------------------------------------------------*/
-  pinMode(13, OUTPUT);                                                // built-in LED is at PIN 13 in Teensy 3.5
-    // clear buffer 
 /*DMA ADC Setup---------------------------------------------------*/ 
-  setup_adc();
-  setup_dma(); 
+  setupADC();
+  startPDB(); 
+  setupDMA(); 
 /*Debug-----------------------------------------------------------*/
   Serial.print("DMA Buffer sample size: ");
-  Serial.println(BUF_DIM);                                                 //Prints Amount of samples
+  Serial.println(BUF_DIM);                                                            //Prints Amount of samples per DMA
   Serial.print("File sample size: ");
   Serial.println(FILE_SIZE);
   Serial.println("End of setup");
@@ -111,28 +132,8 @@ void setup()
 void loop() { 
   if (dma0_isr_counter != old_dma0_isr_counter && dma1_isr_counter != old_dma1_isr_counter)                              // check if buffer section can be written on microSD card
   {
-/*Conversion------------------------------------------------------*/
-  //Conversion from unsigned to signed --> switches the left most bit in hex
-  uint16_t tempbuffer[partition_sample_amount*2];
-  int conversionBufPtr = bufPtr;
-  int conversionBufPtr1 = bufPtr1;
-  for (int i = 0; i < partition_sample_amount*2; i+=2){
-    tempbuffer[i] = buffer[conversionBufPtr];
-    tempbuffer[i] += 0x8000;
-    tempbuffer[i + 1] = buffer1[conversionBufPtr1];
-    tempbuffer[i + 1] += 0x8000;
-    conversionBufPtr++;
-    conversionBufPtr1++;
-  }
-/*----------------------------------------------------------------*/
-    file.write(tempbuffer, sizeof(tempbuffer));                             // write buffer section on SD card;
     
-    last += partition_sample_amount * 2 ;                                                 // increment last to control for file end
-    old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
-    old_dma1_isr_counter++;
-
-    bufPtr = (BUF_DIM - 1) & (bufPtr + partition_sample_amount);                          // choose next buffer section
-    bufPtr1 = (BUF_DIM - 1) & (bufPtr1 + partition_sample_amount);
+    conversionWrite();                                                      // converts unsigned to signed integer and writes it in the file 
 
     if (dma0_isr_counter > old_dma0_isr_counter + (amount_SD_writes-1))     // check if data has been lost
     {
@@ -151,14 +152,14 @@ void loop() {
   if ( last >= FILE_SIZE ) {                                                // check if end of file is reached
     file.close();
     last = 0;                                                               // reset last
-    filestuff();                                                            // create new files for data logging
+    createNewFile();                                                        // create new files for data logging
   }
 }
 /*----------------------------------------------------------------*/
 
 /*Functions-------------------------------------------------------*/
 
-void setup_adc() {
+void setupADC() {
 
   adc->adc0->setResolution      (                  16  );
   adc->adc0->setReference       (ADC_REFERENCE::REF_3V3);
@@ -173,29 +174,27 @@ void setup_adc() {
   adc->adc1->enableDMA();                                                   // connect DMA and ADC
   adc->adc1->setConversionSpeed ( ADC_CONVERSION_SPEED::HIGH_SPEED);      
   adc->adc1->setSamplingSpeed   ( ADC_SAMPLING_SPEED::HIGH_SPEED  );
-  adc->adc1->stopPDB();                                                     // start PDB conversion trigger
-
-  startPDB();    
+  adc->adc1->stopPDB();                                                     // start PDB conversion trigger   
                                                              
 }
 
-void setup_dma(){
+void setupDMA(){
   //Beware order important i.e. transferSize can not be used everywhere, needs to be after source and destination declaration
 
-  dma.begin(true);
-  dma.source(ADC0_RA);
-  dma.destinationBuffer(&buffer[0], Major_size);                            //Major Size should be changed if less than 512 samples are used
-  dma.transferSize(2);
-  dma.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC0); 
-  dma.disableOnCompletion();
-  dma.interruptAtCompletion();
-  dma.attachInterrupt(dma0_isr); 
+  dma0.begin(true);
+  dma0.source(ADC0_RA);
+  dma0.destinationBuffer(&buffer[0], Major_size);                            //Major Size should be changed if less than 512 samples are used
+  dma0.transferSize(2);
+  dma0.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC0); 
+  dma0.disableOnCompletion();
+  dma0.interruptAtCompletion();
+  dma0.attachInterrupt(dma0ISR); 
  
-  dma_switch.sourceBuffer(&ChannelsCfg_0[0], sizeof(ChannelsCfg_0));
-  dma_switch.destination(ADC0_SC1A);
-  dma_switch.transferSize(2);
-  dma_switch.triggerAtTransfersOf(dma);
-  dma_switch.triggerAtCompletionOf(dma);
+  dma0_switch.sourceBuffer(&ChannelsCfg_0[0], sizeof(ChannelsCfg_0));
+  dma0_switch.destination(ADC0_SC1A);
+  dma0_switch.transferSize(2);
+  dma0_switch.triggerAtTransfersOf(dma0);
+  dma0_switch.triggerAtCompletionOf(dma0);
 
   dma1.begin(true);
   dma1.source(ADC1_RA);
@@ -204,7 +203,7 @@ void setup_dma(){
   dma1.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC1); 
   dma1.disableOnCompletion();
   dma1.interruptAtCompletion();
-  dma1.attachInterrupt(dma1_isr); 
+  dma1.attachInterrupt(dma1ISR); 
  
   dma1_switch.sourceBuffer(&ChannelsCfg_1[0], sizeof(ChannelsCfg_1));
   dma1_switch.destination(ADC1_SC1A);
@@ -212,8 +211,8 @@ void setup_dma(){
   dma1_switch.triggerAtTransfersOf(dma1);
   dma1_switch.triggerAtCompletionOf(dma1);
 
-  dma.enable();                                                         
-  dma_switch.enable();
+  dma0.enable();                                                         
+  dma0_switch.enable();
 
   dma1.enable();                                                         
   dma1_switch.enable();
@@ -221,27 +220,27 @@ void setup_dma(){
 
 
 
-void dma0_isr() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
-    buffer_dma_position = buffer_dma_position + 512;
-    if(buffer_dma_position == partition){
+void dma0ISR() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+    buffer_dma0_position = buffer_dma0_position + 512;
+    if(buffer_dma0_position == partition){
       dma0_isr_counter++;
       partition = partition + partition_sample_amount;
       if(partition == BUF_DIM + partition_sample_amount){
         partition = BUF_DIM / amount_SD_writes;
       }
     }
-    if(buffer_dma_position == BUF_DIM){
-      dma.TCD->DADDR = &buffer[0];
-      buffer_dma_position = 0;
+    if(buffer_dma0_position == BUF_DIM){
+      dma0.TCD->DADDR = &buffer[0];
+      buffer_dma0_position = 0;
     }
     else{
-    dma.TCD->DADDR = &buffer[buffer_dma_position];
+    dma0.TCD->DADDR = &buffer[buffer_dma0_position];
     }
-    dma.clearInterrupt();
-    dma.enable();
+    dma0.clearInterrupt();
+    dma0.enable();
 }
 
-void dma1_isr() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+void dma1ISR() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
     buffer_dma1_position = buffer_dma1_position + 512;
     if(buffer_dma1_position == partition1){
       dma1_isr_counter++;
@@ -261,7 +260,7 @@ void dma1_isr() {                                                             //
     dma1.enable();
 }
 
-void setup_RTC(){
+void setupRTC(){
     setSyncProvider(getTeensy3Time);                                           //  set RTC of Teensy's 3.x
   if (timeStatus() != timeSet) {
     Serial.println("Unable to sync with the RTC");
@@ -302,7 +301,7 @@ void digitalClockDisplay() {
   Serial.println();
 }
 
- void setup_File(){
+ void setupFile(){
   
   String Date = String(year()) + "." + String(month()) + "." + String(day()) + "-" + String(hour()) + "." + String(minute()) + "." + String(second());
   String filename = Date + "_dma0_" + fileNr + ".wav";                                // create filenames
@@ -319,11 +318,11 @@ void digitalClockDisplay() {
     sd.errorHalt("open dma0 failed");
   }
 
-  write_wav_header();
+  file.write ((byte *)&wavheader,44);
   
  }
 
- void filestuff() {
+ void createNewFile() {
   String Date = String(year()) + "." + String(month()) + "." + String(day()) + "-" + String(hour()) + "." + String(minute()) + "." + String(second());
   fileNr++;
   String filename = Date + "_dma0_" + fileNr + ".wav";                               // create filenames
@@ -338,65 +337,47 @@ void digitalClockDisplay() {
     sd.errorHalt("open dma0 file failed");
   }
 
-  write_wav_header();
+  file.write ((byte *)&wavheader,44);
 }
 
-void write_wav_header(){
-
+void setupWAVHeader(){
   uint16_t resolution0 = adc->adc0->getResolution();
-  uint32_t SubtwoChunkSize = (FILE_SIZE*2)  * (resolution0/8);                        // =NumSamples * NumChannels * BitsPerSample/8. This is the number of bytes in the data. Number of samples is per Channel, we therefore divide the total FILE_SIZE by the number of Channels --> makes calculation redundant but kept for clarity.
-
+  uint32_t SubtwoChunkSizeCalc = (FILE_SIZE*2)  * (resolution0/8);                                                           // =NumSamples * NumChannels * BitsPerSample/8.
   
   //RIFF chunk descriptor
-    uint8_t mainChunkId[4] = {'R', 'I', 'F', 'F'};                                // Contains the letters "RIFF" in ASCII form
-    file.write(mainChunkId, sizeof(mainChunkId));
-
-    uint32_t mainChunkSize = 36 + SubtwoChunkSize;                                // Size of the entire File -8 bytes for the two fields not included in this count (ChunkID and ChunkSize) 
-    file.write(&mainChunkSize, 4);
-    
-    uint8_t mainChunkFormat[4] = {'W', 'A', 'V', 'E'};
-    file.write(mainChunkFormat, sizeof(mainChunkFormat));
+  char riff[4] = {'R', 'I', 'F', 'F'};
+  strncpy(wavheader.mainChunkId,riff,4);
+  wavheader.mainChunkSize = 36 + SubtwoChunkSizeCalc;                                                                        // Size of the entire File -8 bytes for the two fields not included in this count (ChunkID and ChunkSize) 
+  char wav[4] = {'W', 'A', 'V', 'E'};
+  strncpy(wavheader.mainChunkFormat,wav,4);
 
   //Subchunk1 --> fmt sub-chunk
 
-    uint8_t fmtChunkId[4] = {'f', 'm', 't', ' '};
-    file.write(fmtChunkId, sizeof(fmtChunkId));
-    
-    uint32_t fmtChunkSize = 16; //16 for PCM
-    file.write(&fmtChunkSize, 4);
-
-    uint16_t format = 1;                                                          // 1 is PCM (Pulse-code modulation used for sampled analog signals)
-    file.write(&format, 2);
+  char fmt[4] = {'f', 'm', 't', ' '};
+  strncpy(wavheader.fmtChunkId,fmt,4);
+  wavheader.fmtChunkSize = 16;                                                                                               //16 for PCM
+  wavheader.format_tag = 1;                                                                                                  // 1 is PCM (Pulse-code modulation used for sampled analog signals)
 
   //Subchunk1 sound attributes
+ 
+  wavheader.num_chans = numChannels;
+  wavheader.sample_rate = pdbfreq / ChannelPinNumber0;
+  wavheader.byteRate = pdbfreq / ChannelPinNumber0 * (resolution0/8) * numChannels;                                                                      
+  wavheader.blockAlign = numChannels * (resolution0/8);
+  wavheader.bits_per_samp = resolution0; 
+  //ExtraParamSize = ... doesn't exist when using PCM
+
+  //Subchunk2 contains size of data and actual sound:
+
+  char data[4] = {'d', 'a', 't', 'a'};
+  strncpy(wavheader.SubtwoChunkId,data,4);
+  wavheader.SubtwoChunkSize = SubtwoChunkSizeCalc;
   
-    file.write(&numChannels, 2); //number of channels
-
-    file.write(&pdbfreq, 4); //sample rate
-   
-    uint32_t byteRate = pdbfreq * (resolution0/8) * numChannels;                 //Byte rate = SampleRate * NumChannels * BitsPerSample/8. pdbfreq is determined in the beginning
-    file.write(&byteRate, 4);
-    
-    uint16_t blockAlign = numChannels * (resolution0/8);                         //Block align: number of bytes for one sample including all channels
-    file.write(&blockAlign, 2);
-
-    file.write(&resolution0, 2);                                                 //bits per sample
-
-    //ExtraParamSize = ... doesn't exist when using PCM
-
-  //Subchunk2 contains size of data and actual sound: 
-  
-    uint8_t SubtwoChunkId[4] = {'d', 'a', 't', 'a'};                             //contains letters data
-    file.write(SubtwoChunkId, sizeof(SubtwoChunkId));
-    
-    file.write(&SubtwoChunkSize, 4);
-    
    //This header makes a total of 44 bytes in size
    //for more information visit http://soundfile.sapp.org/doc/WaveFormat/
    //it follows the actual data written in the loop 
   
 }
-
 
 
 void startPDB()
@@ -536,3 +517,29 @@ void reorder(uint16_t channel[], uint16_t pins){
     
   channel[pins-1] = temp;
 }
+
+void conversionWrite(){
+/*Conversion------------------------------------------------------*/
+  int conversionBufPtr = bufPtr;
+  int conversionBufPtr1 = bufPtr1;
+  uint16_t tempbuffer[partition_sample_amount*2];
+  for (int i = 0; i < partition_sample_amount*2; i+=2){
+    tempbuffer[i] = buffer[conversionBufPtr];
+    tempbuffer[i] += 0x8000;
+    tempbuffer[i + 1] = buffer1[conversionBufPtr1];
+    tempbuffer[i + 1] += 0x8000;
+    conversionBufPtr++;
+    conversionBufPtr1++;
+  }
+/*Increment Point, Counter------------------------------------------*/
+  file.write(tempbuffer, sizeof(tempbuffer));                             // write buffer section on SD card;  
+  last += partition_sample_amount * 2 ;                                   // increment last to control for file end
+  old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
+  old_dma1_isr_counter++;
+
+  bufPtr = (BUF_DIM - 1) & (bufPtr + partition_sample_amount);            // choose next buffer section
+  bufPtr1 = (BUF_DIM - 1) & (bufPtr1 + partition_sample_amount);
+  
+}
+
+/*----------------------------------------------------------------*/
