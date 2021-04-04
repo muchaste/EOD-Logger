@@ -50,8 +50,6 @@ struct fileheader {
 
 /*DECLARATIONS SD-card and File-----------------------------------*/
 
-/*DECLARATIONS SD-card and File-----------------------------------*/
-
 SdFs sd;                                          // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
 
 uint16_t fileNr = 0;                              // after a given duration a new file is created; fileNr is an index used for the filename
