@@ -10,26 +10,28 @@
 #define SD_FAT_TYPE 3
 #include <TimeLib.h>          // modified DateTime library for timekeeping functionality
 #define TIME_HEADER  "T"      // header tag used to sync time of Teensy's RTC with the computer; Type "T" 1357041600 ( e.g. Jan 1 2013) into the input line of the Serial Monitor 
-#define BUF_DIM  16384        //size of buffer that holds data from ADC, size = samples 
+#define BUF_DIM  16384        // size of buffer that holds data from ADC, size = samples 
 #define Major_size 1024       // Major Loop size: 512 Samples * 2 bytes
 
-elapsedMillis TEST;
+#define DEBUG                 // Can be commented out if you dont want to use serial output
+elapsedMillis TEST;           // Can return the time (if needed) in milli seconds used for debugging
+
 
 /*DECLARATIONS ADC and Pins---------------------------------------*/
-ADC *adc = new ADC();                                             // used to declare the adc->### object
+ADC *adc = new ADC();                                             //used to declare the adc->### object
 uint16_t ChannelsCfg_0 [] =  { 0x46, 0x47, 0x4F, 0x44 };          //ADC0: A6, A7, A8, A9 Which pins are used for measurement on ADC0
 uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };          //ADC1: A16, A17, A18, A19
 const uint16_t ChannelPinNumber0 = 4;                             //Needed for reordering
 const uint16_t ChannelPinNumber1 = 4;                             //Both need to be equal, because PDB gets intialized simultanously for ADC0 and ADC1
 
-const uint32_t pdbfreq = 80000;                                   
+const uint32_t adc_freq = 115000;                                 //Sampling rate for one ADC each pin on the ADC shares this frequency e.g. if 4 pins are used adc_freq/4                             
 
-volatile int buffer_dma0_position = 0;                             //Pointer position in DMA Buffer, used with partition to determine where to write
+volatile int buffer_dma0_position = 0;                            //Pointer position in DMA Buffer, used with partition to determine where to write
 volatile int buffer_dma1_position = 0;
-volatile int amount_SD_writes = 8;                                //How often do you want to write
-volatile int partition = BUF_DIM / amount_SD_writes;
-volatile int partition1 = BUF_DIM / amount_SD_writes;
-volatile int partition_sample_amount = BUF_DIM / amount_SD_writes;
+volatile int dma_partitions = 8;                                  //How often do you want to write
+volatile int partition = BUF_DIM / dma_partitions;
+volatile int partition1 = BUF_DIM / dma_partitions;
+const int partition_sample_amount = BUF_DIM / dma_partitions;
 
 /*WAV-Header structure---------------------------------------------*/
 struct fileheader {
@@ -66,7 +68,7 @@ uint32_t old_dma0_isr_counter = 0;                // counter that is compared to
 uint32_t dma1_isr_counter = 0;
 uint32_t old_dma1_isr_counter = 0;
 
-uint32_t bufPtr = 0;                              // pointer to the buffer section in which the data is currently transferred
+uint32_t bufPtr0 = 0;                              // pointer to the buffer section in which the data is currently transferred 
 uint32_t bufPtr1 = 0;
 
 uint16_t numChannels = 8;                         // Amount of channels i.e. number of pins used to measure
@@ -80,7 +82,7 @@ const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 
 /*Buffer declarations and DMA-------------------------------------*/
 
-DMAMEM static volatile uint16_t __attribute__((aligned(BUF_DIM))) buffer[BUF_DIM];    // size of buffer is limited due to the Teensy's program memory
+DMAMEM static volatile uint16_t __attribute__((aligned(BUF_DIM))) buffer0[BUF_DIM];    // size of buffer is limited due to the Teensy's program memory 
 DMAMEM static volatile uint16_t __attribute__((aligned(BUF_DIM))) buffer1[BUF_DIM];
 unsigned long debug_start;
 
@@ -100,50 +102,54 @@ void setup()
   reorder(ChannelsCfg_0, ChannelPinNumber0);
   reorder(ChannelsCfg_1, ChannelPinNumber1);
 /*Serial monitor--------------------------------------------------*/
+#ifdef DEBUG
   debug_start = millis();
   Serial.begin(115200);
   while (!Serial && ((millis() - debug_start) <= 5000));
   Serial.println("Begin Setup\n");
+#endif
 /*Time and File setup---------------------------------------------*/
   setupRTC();                  
   setupFile();
-/*LED pin---------------------------------------------------------*/
+/*LED pin and Default Buffer--------------------------------------*/
   pinMode(13, OUTPUT);                                                                // built-in LED is at PIN 13 in Teensy 3.5
-  
-  for (int j = 0; j < BUF_DIM; ++j){                                                  //Set values of the DMA buffer to a default value.
-      buffer[j] = 30000;}
-  for(int k = 0; k < BUF_DIM; ++k){
-    buffer1[k] = 30000;}
+  std::fill(std::begin(buffer0), std::end(buffer0), 0);                               // Set default values of buffer
+  std::fill(std::begin(buffer1), std::end(buffer1), 0);
 /*DMA ADC Setup---------------------------------------------------*/ 
   setupADC();
   startPDB(); 
-  setupDMA(); 
+  setupDMA();
 /*Debug-----------------------------------------------------------*/
+#ifdef DEBUG
   Serial.print("DMA Buffer sample size: ");
   Serial.println(BUF_DIM);                                                            //Prints Amount of samples per DMA
   Serial.print("File sample size: ");
   Serial.println(FILE_SIZE);
   Serial.println("End of setup");
   Serial.println("----------------------------------");
+#endif
 /*----------------------------------------------------------------*/
 }
+
+
 void loop() { 
   if (dma0_isr_counter != old_dma0_isr_counter && dma1_isr_counter != old_dma1_isr_counter)                              // check if buffer section can be written on microSD card
   {
     
     conversionWrite();                                                      // converts unsigned to signed integer and writes it in the file 
-
-    if (dma0_isr_counter > old_dma0_isr_counter + (amount_SD_writes-1))     // check if data has been lost
+    #ifdef DEBUG
+    if (dma0_isr_counter > old_dma0_isr_counter + (dma_partitions-1))     // check if data has been lost
     {
       Serial.print("lost dma0 data");
       Serial.println( dma0_isr_counter - old_dma0_isr_counter);
     }
 
-    if (dma1_isr_counter > old_dma1_isr_counter + (amount_SD_writes-1))     // check if data has been lost
+    if (dma1_isr_counter > old_dma1_isr_counter + (dma_partitions-1))     // check if data has been lost
     {
       Serial.print("lost dma1 data");
       Serial.println( dma0_isr_counter - old_dma0_isr_counter);
     }
+    #endif
     
   }
 
@@ -176,35 +182,35 @@ void setupADC() {
                                                              
 }
 
-void setupDMA(){
-  //Beware order important i.e. transferSize can not be used everywhere, needs to be after source and destination declaration
-
+void setupDMA() {
+  /*  Beware order important i.e. transferSize can not be used everywhere, needs to be after source and destination declaration
+      Major Size should be changed if less than 512 samples are used */
   dma0.begin(true);
   dma0.source(ADC0_RA);
-  dma0.destinationBuffer(&buffer[0], Major_size);                            //Major Size should be changed if less than 512 samples are used
+  dma0.destinationBuffer(&buffer0[0], Major_size);                            //buffer0 is the buffer that holds the data of the DMA0, Major_size is the amount of bits which gets written into the buffer to complete a major loop
   dma0.transferSize(2);
   dma0.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC0); 
   dma0.disableOnCompletion();
   dma0.interruptAtCompletion();
-  dma0.attachInterrupt(dma0ISR); 
+  dma0.attachInterrupt(dma0ISR);                                              //Interrupted after 512 Samples or 1024 bits
  
-  dma0_switch.sourceBuffer(&ChannelsCfg_0[0], sizeof(ChannelsCfg_0));
-  dma0_switch.destination(ADC0_SC1A);
+  dma0_switch.sourceBuffer(&ChannelsCfg_0[0], sizeof(ChannelsCfg_0));         //ChannelsCfg_0 the buffer that holds the hex numbers of the pins used 
+  dma0_switch.destination(ADC0_SC1A);                                         //Write into SC1A registry to switch channels
   dma0_switch.transferSize(2);
   dma0_switch.triggerAtTransfersOf(dma0);
-  dma0_switch.triggerAtCompletionOf(dma0);
+  dma0_switch.triggerAtCompletionOf(dma0);                                    
 
   dma1.begin(true);
   dma1.source(ADC1_RA);
-  dma1.destinationBuffer(&buffer1[0], Major_size);
+  dma1.destinationBuffer(&buffer1[0], Major_size);                            //buffer1 is the buffer that holds the data of the DMA1, Major_size is the amount of bits which gets written into the buffer to complete a major loop
   dma1.transferSize(2);
   dma1.triggerAtHardwareEvent (DMAMUX_SOURCE_ADC1); 
   dma1.disableOnCompletion();
   dma1.interruptAtCompletion();
-  dma1.attachInterrupt(dma1ISR); 
+  dma1.attachInterrupt(dma1ISR);                                              //Interrupted after 512 Samples or 1024 bits
  
-  dma1_switch.sourceBuffer(&ChannelsCfg_1[0], sizeof(ChannelsCfg_1));
-  dma1_switch.destination(ADC1_SC1A);
+  dma1_switch.sourceBuffer(&ChannelsCfg_1[0], sizeof(ChannelsCfg_1));         //ChannelsCfg_0 the buffer that holds the hex numbers of the pins used 
+  dma1_switch.destination(ADC1_SC1A);                                         //Write into SC1A registry to switch channels
   dma1_switch.transferSize(2);
   dma1_switch.triggerAtTransfersOf(dma1);
   dma1_switch.triggerAtCompletionOf(dma1);
@@ -218,33 +224,38 @@ void setupDMA(){
 
 
 
-void dma0ISR() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+void dma0ISR() {  
+  /*  method that deletes interrupt and increments a counter.
+      Method is later attached to the resepctive dma channel via dma.attachInterrupt(dma0_isr); */
     buffer_dma0_position = buffer_dma0_position + 512;
     if(buffer_dma0_position == partition){
       dma0_isr_counter++;
       partition = partition + partition_sample_amount;
       if(partition == BUF_DIM + partition_sample_amount){
-        partition = BUF_DIM / amount_SD_writes;
+        partition = BUF_DIM / dma_partitions;
       }
     }
     if(buffer_dma0_position == BUF_DIM){
-      dma0.TCD->DADDR = &buffer[0];
+      dma0.TCD->DADDR = &buffer0[0];
       buffer_dma0_position = 0;
     }
     else{
-    dma0.TCD->DADDR = &buffer[buffer_dma0_position];
+    dma0.TCD->DADDR = &buffer0[buffer_dma0_position];
     }
     dma0.clearInterrupt();
     dma0.enable();
 }
 
-void dma1ISR() {                                                             // method that deletes interrupt and increments a counter; method is later attached to the resepctive dma channel via  dma.attachInterrupt(dma0_isr);
+void dma1ISR() {   
+  /*  method that deletes interrupt and increments a counter.
+      Method is later attached to the resepctive dma channel via dma.attachInterrupt(dma0_isr); */
+      
     buffer_dma1_position = buffer_dma1_position + 512;
     if(buffer_dma1_position == partition1){
       dma1_isr_counter++;
       partition1 = partition1 + partition_sample_amount;
       if(partition1 == BUF_DIM + partition_sample_amount){
-        partition1 = BUF_DIM / amount_SD_writes;
+        partition1 = BUF_DIM / dma_partitions;
       }
     }
     if(buffer_dma1_position == BUF_DIM){
@@ -260,11 +271,13 @@ void dma1ISR() {                                                             // 
 
 void setupRTC(){
     setSyncProvider(getTeensy3Time);                                           //  set RTC of Teensy's 3.x
+  #ifdef DEBUG
   if (timeStatus() != timeSet) {
     Serial.println("Unable to sync with the RTC");
   } else {
     Serial.println("RTC has set the system time");
   }
+  #endif
 }
 
 time_t getTeensy3Time()
@@ -275,7 +288,7 @@ time_t getTeensy3Time()
 unsigned long processSyncMessage() {
   unsigned long pctime = 0L;
   const unsigned long DEFAULT_TIME = 1357041600;                               // default Jan 1 2013
-
+  #ifdef DEBUG
   if (Serial.find(TIME_HEADER)) {
     pctime = Serial.parseInt();
     return pctime;
@@ -284,9 +297,11 @@ unsigned long processSyncMessage() {
     }
   }
   return pctime;
+  #endif
 }
 
 void digitalClockDisplay() {
+  #ifdef DEBUG
   Serial.print(hour());
   Serial.print(minute());
   Serial.print(second());
@@ -297,39 +312,27 @@ void digitalClockDisplay() {
   Serial.print(" ");
   Serial.print(year());
   Serial.println();
+  #endif
 }
 
  void setupFile(){
-  
-  String Date = String(year()) + "." + String(month()) + "." + String(day()) + "-" + String(hour()) + "." + String(minute()) + "." + String(second());
-  String filename = Date + "_dma0_" + fileNr + ".wav";                                // create filenames
-  char fname[30];
-  filename.toCharArray(fname, 30);
-
-  Serial.println(filename);
-
   if (!sd.begin(SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SD_SCK_MHZ(50)))) {            // start sdio interface to SD card
     sd.initErrorHalt("SdFatSdio   begin() failed");
   }    
   sd.chvol();
-  if (!file.open(fname, O_RDWR | O_CREAT)) {                                         // create SD card files
-    sd.errorHalt("open dma0 failed");
-  }
-
-  file.write ((byte *)&wavheader,44);
-  
+  createNewFile();
  }
 
  void createNewFile() {
-  String Date = String(year()) + "." + String(month()) + "." + String(day()) + "-" + String(hour()) + "." + String(minute()) + "." + String(second());
+  String Date = String(year()) + "-" + String(month()) + "-" + String(day()) + "-" + String(hour()) + "-" + String(minute()) + "-" + String(second());
   fileNr++;
-  String filename = Date + "_dma0_" + fileNr + ".wav";                               // create filenames
+  String filename = Date + "-N" + fileNr + ".wav";                               // create filenames
   char fname[30];
   filename.toCharArray(fname, 30);
+  #ifdef DEBUG
   Serial.print("filename: ");
-  Serial.print(filename);
-  Serial.print("    ");
-  Serial.println(TEST);
+  Serial.println(filename);
+  #endif
   
   if (!file.open(fname, O_RDWR | O_CREAT)) {
     sd.errorHalt("open dma0 file failed");
@@ -359,8 +362,8 @@ void setupWAVHeader(){
   //Subchunk1 sound attributes
  
   wavheader.num_chans = numChannels;
-  wavheader.sample_rate = pdbfreq / ChannelPinNumber0;
-  wavheader.byteRate = pdbfreq / ChannelPinNumber0 * (resolution0/8) * numChannels;                                                                      
+  wavheader.sample_rate = adc_freq / ChannelPinNumber0;
+  wavheader.byteRate = adc_freq / ChannelPinNumber0 * (resolution0/8) * numChannels;                                                                      
   wavheader.blockAlign = numChannels * (resolution0/8);
   wavheader.bits_per_samp = resolution0; 
   //ExtraParamSize = ... doesn't exist when using PCM
@@ -373,8 +376,6 @@ void setupWAVHeader(){
   
    //This header makes a total of 44 bytes in size
    //for more information visit http://soundfile.sapp.org/doc/WaveFormat/
-   //it follows the actual data written in the loop 
-  
 }
 
 
@@ -385,14 +386,14 @@ void startPDB()
         SIM_SCGC6 |= SIM_SCGC6_PDB; // enable pdb clock
     }
 
-    if (pdbfreq > ADC_F_BUS)
+    if (adc_freq > ADC_F_BUS)
         return; // too high
-    if (pdbfreq < 1)
+    if (adc_freq < 1)
         return; // too low
 
     // mod will have to be a 16 bit value
     // we detect if it's higher than 0xFFFF and scale it back accordingly.
-    uint32_t mod = (ADC_F_BUS / pdbfreq);
+    uint32_t mod = (ADC_F_BUS / adc_freq);
 
     uint8_t prescaler = 0; // from 0 to 7: factor of 1, 2, 4, 8, 16, 32, 64 or 128
     uint8_t mult = 0;      // from 0 to 3, factor of 1, 10, 20 or 40
@@ -518,15 +519,16 @@ void reorder(uint16_t channel[], uint16_t pins){
 
 void conversionWrite(){
 /*Conversion------------------------------------------------------*/
-  int conversionBufPtr = bufPtr;
+ /* Conversion transformes unsigned to signed and merges both arrays of DMA0 and DMA1*/ 
+  int conversionBufPtr0 = bufPtr0;
   int conversionBufPtr1 = bufPtr1;
   uint16_t tempbuffer[partition_sample_amount*2];
   for (int i = 0; i < partition_sample_amount*2; i+=2){
-    tempbuffer[i] = buffer[conversionBufPtr];
+    tempbuffer[i] = buffer0[conversionBufPtr0];
     tempbuffer[i] += 0x8000;
     tempbuffer[i + 1] = buffer1[conversionBufPtr1];
     tempbuffer[i + 1] += 0x8000;
-    conversionBufPtr++;
+    conversionBufPtr0++;
     conversionBufPtr1++;
   }
 /*Increment Point, Counter------------------------------------------*/
@@ -535,7 +537,7 @@ void conversionWrite(){
   old_dma0_isr_counter++;                                                 // increment counter so that it matches dma0_isr_counter
   old_dma1_isr_counter++;
 
-  bufPtr = (BUF_DIM - 1) & (bufPtr + partition_sample_amount);            // choose next buffer section
+  bufPtr0 = (BUF_DIM - 1) & (bufPtr0 + partition_sample_amount);          // choose next buffer section
   bufPtr1 = (BUF_DIM - 1) & (bufPtr1 + partition_sample_amount);
   
 }
