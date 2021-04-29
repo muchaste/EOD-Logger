@@ -12,23 +12,24 @@
 #define TIME_HEADER  "T"      // header tag used to sync time of Teensy's RTC with the computer; Type "T" 1357041600 ( e.g. Jan 1 2013) into the input line of the Serial Monitor 
 #define BUF_DIM  16384        // size of buffer that holds data from ADC, size = samples 
 #define Major_size 1024       // Major Loop size: 512 Samples * 2 bytes
+#define Major_samples 512     // Amount of samples in major loop
 
 #define DEBUG                 // Can be commented out if you dont want to use serial output
 elapsedMillis TEST;           // Can return the time (if needed) in milli seconds used for debugging
 
 
 /*DECLARATIONS ADC and Pins---------------------------------------*/
-ADC *adc = new ADC();                                             //used to declare the adc->### object
-uint16_t ChannelsCfg_0 [] =  { 0x46, 0x47, 0x4F, 0x44 };          //ADC0: A6, A7, A8, A9 Which pins are used for measurement on ADC0
-uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };          //ADC1: A16, A17, A18, A19
-const uint16_t ChannelPinNumber0 = 4;                             //Needed for reordering
-const uint16_t ChannelPinNumber1 = 4;                             //Both need to be equal, because PDB gets intialized simultanously for ADC0 and ADC1
+ADC *adc = new ADC();                                                                 //used to declare the adc->### object
+uint16_t ChannelsCfg_0 [] =  { 0x46, 0x47, 0x4F, 0x44 };                              //ADC0: A6, A7, A8, A9 Which pins are used for measurement on ADC0
+uint16_t ChannelsCfg_1 [] =  { 0x44, 0x45, 0x46, 0x47 };                              //ADC1: A16, A17, A18, A19
+const uint16_t ChannelPinNumber0 = sizeof(ChannelsCfg_0) / sizeof(ChannelsCfg_0[0]);  //Needed for reordering
+const uint16_t ChannelPinNumber1 = sizeof(ChannelsCfg_1) / sizeof(ChannelsCfg_1[0]);  //Both need to be equal, because PDB gets intialized simultanously for ADC0 and ADC1
 
-const uint32_t adc_freq = 115000;                                 //Sampling rate for one ADC each pin on the ADC shares this frequency e.g. if 4 pins are used adc_freq/4                             
+const uint32_t adc_freq = 115000;                                                     //Sampling rate for one ADC each pin on the ADC shares this frequency e.g. if 4 pins are used adc_freq/4                             
 
-volatile int buffer_dma0_position = 0;                            //Pointer position in DMA Buffer, used with partition to determine where to write
+volatile int buffer_dma0_position = 0;                                                //Pointer position in DMA Buffer, used with partition to determine where to write
 volatile int buffer_dma1_position = 0;
-volatile int dma_partitions = 8;                                  //How often do you want to write
+volatile int dma_partitions = 8;                                                      //How often do you want to write
 volatile int partition = BUF_DIM / dma_partitions;
 volatile int partition1 = BUF_DIM / dma_partitions;
 const int partition_sample_amount = BUF_DIM / dma_partitions;
@@ -52,26 +53,26 @@ struct fileheader {
 
 /*DECLARATIONS SD-card and File-----------------------------------*/
 
-SdFs sd;                                          // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
+SdFs sd;                                                              // used to declare the sd.### object (Sdfat); do not use SdFatSdioEX sd
 
-uint16_t fileNr = 0;                              // after a given duration a new file is created; fileNr is an index used for the filename
-String Name = "EODLog_aa";                        // filename prefix
+uint16_t fileNr = 0;                                                  // after a given duration a new file is created; fileNr is an index used for the filename
+String Name = "EODLog_aa";                                            // filename prefix
 
-FsFile file;                                      // file object for logging data
+FsFile file;                                                          // file object for logging data
 
-uint32_t      FILE_SIZE       = 0;                // filesize DMA-Buffer*times_buffer
-uint32_t      last            = 0;                // coutner uint16_t values that are written to SD card
-const int     times_buffer    = 10 * 2;               // creation of a file based on a multiple of the buffer size
+uint32_t      FILE_SIZE       = 0;                                    // filesize DMA-Buffer*times_buffer
+uint32_t      last            = 0;                                    // coutner uint16_t values that are written to SD card
+const int     times_buffer    = 10 * 2;                               // creation of a file based on a multiple of the buffer size
 
-uint32_t dma0_isr_counter = 0;                    // counter that will be incremented after a major loop completion (hardware)
-uint32_t old_dma0_isr_counter = 0;                // counter that is compared to the dma0_isr_counter to register the hardware increment
+uint32_t dma0_isr_counter = 0;                                        // counter that will be incremented after a major loop completion (hardware)
+uint32_t old_dma0_isr_counter = 0;                                    // counter that is compared to the dma0_isr_counter to register the hardware increment
 uint32_t dma1_isr_counter = 0;
 uint32_t old_dma1_isr_counter = 0;
 
-uint32_t bufPtr0 = 0;                              // pointer to the buffer section in which the data is currently transferred 
+uint32_t bufPtr0 = 0;                                                 // pointer to the buffer section in which the data is currently transferred 
 uint32_t bufPtr1 = 0;
 
-uint16_t numChannels = 8;                         // Amount of channels i.e. number of pins used to measure
+uint16_t numChannels = ChannelPinNumber0 + ChannelPinNumber1;         // Amount of channels i.e. number of pins used to measure
 
 // SDCARD_SS_PIN is defined for the built-in SD on some boards. Definition of the pin used for the SD-card
 #ifndef SDCARD_SS_PIN
@@ -95,13 +96,18 @@ DMAChannel dma1_switch;
 
 void setup() 
 {
- /*WAV-Header-----------------------------------------------------*/ 
-  FILE_SIZE = times_buffer * BUF_DIM;                                                 // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels
+/*Pin Check------------------------------------------------------*/
+  if(ChannelPinNumber0 != ChannelPinNumber1){                                                                                   //Check if both ADC have same number of Pins assigned
+    Serial.println("ADC modules don't have the same amount of channels/pins assigned. Change ChannelsCfg_0 or ChannelsCfg_1");
+    return;                                                                                                                     //Stop setup if ADC have a different amount of pins assigned
+  }
+/*WAV-Header-----------------------------------------------------*/ 
+  FILE_SIZE = times_buffer * BUF_DIM;                                                                                           // after writing FILE_SIZE uint16_t values to a file a new file is created. *2 because we use 2 DMA channels
   setupWAVHeader();
-/*Reorder---------------------------------------------------------*/                  // Reorders Pin arrays to match order in WAV-FILE
+/*Reorder--------------------------------------------------------*/                                                             // Reorders Pin arrays to match order in WAV-FILE
   reorder(ChannelsCfg_0, ChannelPinNumber0);
   reorder(ChannelsCfg_1, ChannelPinNumber1);
-/*Serial monitor--------------------------------------------------*/
+/*Serial monitor-------------------------------------------------*/
 #ifdef DEBUG
   debug_start = millis();
   Serial.begin(115200);
@@ -227,9 +233,9 @@ void setupDMA() {
 void dma0ISR() {  
   /*  method that deletes interrupt and increments a counter.
       Method is later attached to the resepctive dma channel via dma.attachInterrupt(dma0_isr); */
-    buffer_dma0_position = buffer_dma0_position + 512;
-    if(buffer_dma0_position == partition){
-      dma0_isr_counter++;
+    buffer_dma0_position += Major_samples;
+    if(buffer_dma0_position == partition){                                 // Current buffer partition full?
+      dma0_isr_counter++;                                                  // Counter for loop function to start writing
       partition = partition + partition_sample_amount;
       if(partition == BUF_DIM + partition_sample_amount){
         partition = BUF_DIM / dma_partitions;
@@ -248,12 +254,12 @@ void dma0ISR() {
 
 void dma1ISR() {   
   /*  method that deletes interrupt and increments a counter.
-      Method is later attached to the resepctive dma channel via dma.attachInterrupt(dma0_isr); */
+      Method is later attached to the resepctive dma channel via dma.attachInterrupt(dma1_isr); */
       
-    buffer_dma1_position = buffer_dma1_position + 512;
-    if(buffer_dma1_position == partition1){
-      dma1_isr_counter++;
-      partition1 = partition1 + partition_sample_amount;
+    buffer_dma1_position += Major_samples;
+    if(buffer_dma1_position == partition1){                                   // Current buffer partition full?
+      dma1_isr_counter++;                                                     // Counter for loop function to start writing
+      partition1 = partition1 + partition_sample_amount;                    
       if(partition1 == BUF_DIM + partition_sample_amount){
         partition1 = BUF_DIM / dma_partitions;
       }
