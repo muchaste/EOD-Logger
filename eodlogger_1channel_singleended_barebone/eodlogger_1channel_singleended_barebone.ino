@@ -1,5 +1,5 @@
 //*************************************************************************
-// Two channel EOD logger programm for testing purposes
+// One channel EOD logger programm for testing purposes
 // Barebone: no RTC
 //*************************************************************************
 
