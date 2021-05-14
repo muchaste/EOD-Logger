@@ -1,0 +1,114 @@
+// Simple TFT Data Logger
+
+#include <ADC.h>              //library for easier ADC implementation
+#include <Adafruit_GFX.h>    // Core graphics library
+#include <Adafruit_ST7735.h> // Hardware-specific library
+#include <SPI.h> 
+
+// Pins
+
+#define TFT_CS        10
+#define TFT_RST        9 
+#define TFT_DC         8
+
+//#define LCD_CS A3
+//#define LCD_CD A2
+//#define LCD_WR A1
+//#define LCD_RD A0
+
+#define LCD_RESET A4
+
+
+// Color definitions 
+
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define CYAN    0x07FF
+#define MAGENTA 0xF81F
+#define YELLOW  0xFFE0
+#define WHITE   0xFFFF
+#define GREY      0xCE79
+#define LIGHTGREY 0xDEDB
+
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
+int loopCounter = 0;
+
+int sensor1Val = 0; // used to hold sensor data
+int sensor1Valconv = 0;
+int sensor1ValOld = 0; // holds previous value for line graph
+
+int CenterGraphColor = WHITE;
+
+int CenterDirection = 0;
+
+
+//_____________________________Analog 
+
+ADC *adc = new ADC(); 
+
+const uint8_t adc_pin0 = A2;                    // Change later maybe to define ?
+
+
+void setup(void){
+  Serial.begin(9600);;
+  setup_adc();
+  
+
+  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
+  tft.fillScreen(BLACK);
+  tft.setRotation(1);
+  delay(500);
+  
+
+}
+
+void loop(){
+
+  sensor1Val = analogRead(adc_pin0);
+  sensor1Valconv = 0.5 * sensor1Val;
+  
+  if(sensor1Valconv < 10){
+    sensor1Valconv = 10;
+  }
+  else if(sensor1Valconv > 120){
+    sensor1Valconv = 120;
+  }
+
+  Serial.print(sensor1Valconv);
+  Serial.print("____________");
+  Serial.println(sensor1Val);
+  
+  
+  if (CenterDirection == 0){
+        tft.drawLine(loopCounter, sensor1ValOld, loopCounter + 1, sensor1Valconv, CenterGraphColor);}
+  else{
+        tft.drawLine(tft.width() - loopCounter + 1, sensor1ValOld, tft.width() - loopCounter, sensor1Valconv, CenterGraphColor);}
+  
+  sensor1ValOld = sensor1Valconv;
+  
+  if (loopCounter == tft.width()  )
+      {
+        loopCounter = 0;
+        tft.fillScreen(BLACK);
+      }
+      else
+      {
+        loopCounter = loopCounter + 1;
+      }
+
+    delay(50); // helps smooth out graphs especially if more than one is drawing
+  
+}
+void setup_adc() {
+
+  adc->adc0->setAveraging       (                              1  );
+  adc->adc0->setResolution      (                             8   );
+  adc->adc0->setReference       (           ADC_REFERENCE::REF_3V3);
+  adc->adc0->setConversionSpeed (  ADC_CONVERSION_SPEED::MED_SPEED);
+  adc->adc0->setSamplingSpeed   (    ADC_SAMPLING_SPEED::MED_SPEED);
+  adc->adc0->startContinuous    (                         adc_pin0);
+  pinMode                       (                  adc_pin0, INPUT); 
+}
