@@ -54,7 +54,7 @@
 ## Table of Contents
 
 * [About the Project](#about-the-project)
-  * [Overview: EOD-logger v1](#overview-eod-logger-v1)
+  * [Version Overview](#version-overview)
   * [Built With](#built-with)
 * [Getting Started](#getting-started)
   * [Prerequisites](#prerequisites)
@@ -73,9 +73,15 @@
 Weakly electric fishes emit constant or intermittent electric organ discharges to communicate and navigate. These discharges can be recorded by sampling the voltage in the water surrounding the fish. Due to the short duration of some EODs, a sample rate of up to 100 kHz is necessary to record these signals.
 The purpose of this project is to design a cheap and easy-to-use recording device that can autonomously record the signals of weakly electric fish.
 
-### Overview: EOD-logger v1
-The first field-tested version of the logger (eodlogger_v1) uses no amplification or frequency filters and takes direct analog input from carbon electrodes.
-Voltage is measured in differential mode and written to the onboard buffer using DMA channels. A DS3231 RTC chip is used to keep track of the time. Every 10 minutes, the recorded data is written as .bin file onto the microSD card using the timestamp as filename.
+### Version Overview
+* eodlogger_v1: The first field-tested version of the logger. Used with direct analog input from carbon electrodes to ADC0 and ADC1. Voltage is measured in differential mode and written to the onboard buffer using DMA channels. A DS3231 RTC chip is used to keep track of the time. Every 10 minutes, the recorded data is written as .bin file onto the microSD card using the timestamp as filename.
+* eodlogger_1channel_diff_barebone: simplification of eodlogger_v1, runs without RTC chip, mostly for testing purposes.
+* eodlogger_1channel_diff_DS3231: developed version of eodlogger_v1, uses up-to-date libraries and supports exFat formatted SD cards. Reads voltage from ADC0 and ADC1 as differential input, saves data as .bin every 10, creates metadata .txt file with recording information (location, sample rate, experimenter, ...)
+* eodlogger_1channel_singleended_barebone: single-ended version of the 1channel_diff_barebone sketch, mostly for development or testing purposes.
+* eodlogger-2channel: First two channel recording sketch developed by Lydia Federman to explore simultaneous recording on both ADCs. Includes online analysis functions that are currently under development.
+* eodlogger_2channel_barebone: Simplified and updated two channel recording sketch. Reads voltage separately from two single-ended inputs into ADC0 and ADC1, saves one .bin file per ADC. Mostly for testing purposes.
+* eodlogger_2channel_DS3231: Developed version of the barebone sketch, includes timestamps from RTC and creates metadata .txt file in addition to the .bin files (analogous to eodlogger_1channel_diff_DS3231).
+* eodlogger_8channel: Latest development by Sebastian Volkmer. Uses multiplexing to read 8 inputs simultaneously (4 per ADC). Saves recordings as .wav files with encoded metadata.
 
 ### Built With
 **Core components:**
@@ -96,25 +102,40 @@ Voltage is measured in differential mode and written to the onboard buffer using
 ### Prerequisites
 * Install the Arduino GUI and Teensyduino Addon
 
+### Where to start?
+Which sketch you need depends on your application - do you want to record on one or several channels? Do you want to read differential or single-ended input? The following sketches are the most up-to-date versions that cover most applications
+* 1-Channel differential recording: eodlogger_1channel_diff_DS3231
+* 2-Channel single-ended: eodlogger_2channel_DS3231
+* 8-Channel single-eded: eodlogger_8channel
+
+For testing purposes, the barebone versions of the 1- and 2-Channel sketches are recommended, as they don't use an RTC.
+
 ### Installation
 
-1. Clone the repo or download the eodlogger_v1.ino sketch
+1. Clone the repo or download the sketch that suits your needs.
 
 2. Adjust the sketch to your needs (see comments in sketch).
 
-3. Wire the components as can be seen below:
+3. Wire the components. An example for a simple configuration (no amp, differential input directly from electrodes) can be seen below:
 <img src="images/eod_logger_wiring_Steckplatine.png" alt="Wiring scheme">
 <img src="images/eod_logger_wiring_circuit.png" alt="Circuit scheme">
 
-4. Set the RTC clock using the "SetTime" Sketch from the DS1317RTC library examples (this also works with the DS3231 chip)
+4. If you use an RTC clock, set the RTC clock using the "SetTime" Sketch from the DS1317RTC library examples (this also works with the DS3231 chip)
 
-5. Upload the eodlogger_v1.ino 
+5. Upload the sketch to the teensy and start recording.
 
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-As soon as the EOD-logger is powered up, it will run through its startup routine. If everything checks out (SD card found, RTC responds), the onboard LED on the Teensy blinks 5 times. From this point, the logger records continuously voltage and stores the values on the SD card until you turn it off, energy runs out or the SD card is full.
+The loggers store continuous analog voltage readings on the onboard SD card of the Teensy 3.5. Operation duration depends on power supply capacity, storage capacity, sample rate and number of channels. With an autonomous voltage supply (e.g. a powerbank) and a waterproof housing, the loggers can be deployed in any aquatic system and monitor electrical activity.
 
+*Test your configuration before going full Jacques Cousteau. Expect everything that can go wrong, to actually go wrong.*
+
+This may sound trivial but it is probably the most precious advice I can give. There are many pitfalls hidden in DIY projects such as this one here. Here are some that I encountered on my first sampling trip:
+* Cables came loose
+* Water entered my loggers' housing when water temperature and pressure changed over night
+* Waves and water current shook the loggers so violently that they stopped logging (probably some power supply contact issue)
+* Someone took them (have enough of them with you!)  
 
 
 <!-- ROADMAP -->
@@ -122,7 +143,7 @@ As soon as the EOD-logger is powered up, it will run through its startup routine
 
 See the [open issues](https://github.com/muchaste/EOD-logger/issues) for a list of proposed features (and known issues).
 
-### EODlogger v2
+### Developments
 We are currently developing hardware and software enhancements (amplifier and filter shield) to extend the useability of the EOD logger.
 Planned changes could include:
 * Amplification, low-pass and high-pass filtering of signals before recording
@@ -130,14 +151,13 @@ Planned changes could include:
 * Reduced battery usage/powerbank as power source
 * GPS module
 
-### Two channel recording
-[Prof. Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Find their contribution here:
-[https://github.com/muchaste/EOD-Logger/tree/master/eodlogger-2channel](https://github.com/muchaste/EOD-Logger/tree/master/eodlogger-2channel).
+### Multiple channel recording
+[Prof. Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Sebastian Volkmer has developed and contributed an 8-channel recording sketch!!
 
 <!-- CONTRIBUTING -->
 ## Contributing
 
-This is an open project that can only benefit from the contributions of any commited eFish researcher. Any contributions you make are **greatly appreciated**.
+This is an open project that can only benefit from the contributions of interested researchers. Any contributions you make are **greatly appreciated**.
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -165,10 +185,12 @@ Project Link: [https://github.com/muchaste/EOD-logger](https://github.com/muchas
 
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
-
+This project has become possible thanks to the following supervisors, contributors and supporters:
 * [Prof. Rüdiger Krahe](https://www.biologie.hu-berlin.de/en/gruppenseiten-en/vhphysiol)
 * [Prof. Jan Benda](https://bendalab.github.io/)
 * Leon Marquardt
+* Lydia Federman
+* Sebastian Volkmer
 * The [Teensy](https://forum.pjrc.com/) and [Arduino](https://forum.arduino.cc/) community
 
 
