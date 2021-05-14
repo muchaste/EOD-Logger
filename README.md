@@ -40,11 +40,13 @@
     <a href="https://github.com/muchaste/EOD-logger"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/muchaste/EOD-logger">View Demo</a>
+    <a href="https://github.com/muchaste/EOD-logger#getting-started">Get Started</a>
     ·
     <a href="https://github.com/muchaste/EOD-logger/issues">Report Bug</a>
     ·
     <a href="https://github.com/muchaste/EOD-logger/issues">Request Feature</a>
+    .
+    <a href="https://github.com/muchaste/EOD-logger#contributing">Contribute</a>
   </p>
 </p>
 
