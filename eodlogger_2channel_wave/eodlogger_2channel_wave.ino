@@ -13,7 +13,7 @@ int8_t channel1 =  A16;              // input pin for ADC1
 int bits = 12;                       // resolution: 10bit 12bit, or 16bit
 int averaging = 8;                   // number of averages per sample: 0, 4, 8, 16, 32
 
-char path = "recordings";            // directory where to store files on SD card.
+char path[] = "recordings";            // directory where to store files on SD card.
 char fileName[] = "logger1-SDATETIME.wav";   // may include DATE, SDATE, TIME, STIME, DATETIME, SDATETIME, ANUM, NUM
 float fileSaveTime = 10*60;          // seconds
 
