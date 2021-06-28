@@ -50,12 +50,33 @@ about the TeeRec library.
 
 Open the `eodlogger_2channel_wave` sketch in the Arduino IDE.
 
+### Real-time clock
+
+By default, the on board real-time clock of the Teensy is used. If you
+want to use a clock provided by an external DS1307RTC instead
+(e.g. the AT24C32 RTC Modul), then uncomment the Wire and DS1307RTC
+include at the top of the sketch:
+```c
+#include <ContinuousADC.h>
+#include <SDWriter.h>
+#include <Wire.h>
+#include <DS1307RTC.h>
+#include <RTClock.h>
+```
+
+### Data acquisition
+
 In the top section marked as "Settings" you may adapt some settings
 according to you needs. The first block is about the data
 acquisition. You can set the sampling rate, input pins (channels), bit
 resolution, and number of averages per sample. If you change these
 settings, check the output on the serial monitor and the performance
-before using the logger!
+before using the logger! See
+[TeeRec](https://github.com/janscience/TeeRec) for various sketches
+and tools that help you to select the best settings for the data
+acquisition.
+
+### File size and naming
 
 The second section is about the files that store the data on the SD
 card.  The files are stored in a directory whose name is specified by
