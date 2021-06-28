@@ -84,6 +84,7 @@ The purpose of this project is to design a cheap and easy-to-use recording devic
 * eodlogger_2channel_barebone: Simplified and updated two channel recording sketch. Reads voltage separately from two single-ended inputs into ADC0 and ADC1, saves one .bin file per ADC. Mostly for testing purposes.
 * eodlogger_2channel_DS3231: Developed version of the barebone sketch, includes timestamps from RTC and creates metadata .txt file in addition to the .bin files (analogous to eodlogger_1channel_diff_DS3231).
 * eodlogger_8channel: Latest development by Sebastian Volkmer. Uses multiplexing to read 8 inputs simultaneously (4 per ADC). Saves recordings as .wav files with encoded metadata.
+* [eodlogger_2channel_wave](eodlogger_2channel_wave/README.md): [TeeRec](https://github.com/janscience/TeeRec)-based logger, here for recordings from 2-channels directly into WAV files.
 
 ### Built With
 **Core components:**
@@ -154,7 +155,7 @@ Planned changes could include:
 * GPS module
 
 ### Multiple channel recording
-[Prof. Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Sebastian Volkmer has developed and contributed an 8-channel recording sketch!!
+[Jan Benda](https://bendalab.github.io/) and Lydia Federman have contributed a first sketch to record two analog channels (single-ended). Sebastian Volkmer has developed and contributed an 8-channel recording sketch!! These developments are summarized in the [TeeRec](https://github.com/janscience/TeeRec) libraries.
 
 <!-- CONTRIBUTING -->
 ## Contributing
