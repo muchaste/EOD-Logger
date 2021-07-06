@@ -114,14 +114,15 @@ The on-board LED of the Teensy indicates the following events:
   (timeout for establishing a serial connection with a computer).
 
 - Normal operation, i.e. data acquisition is running and data are
-  written to SD card: the LED briefly flashes every 2 seconds.
+  written to SD card: the LED briefly flashes every 5 seconds.
 
 - Whenever a file is closed (and a new one opened), the LED lights for
-  1 second. Then it continues with flashes every 2 seconds.
+  1 second. Then it continues with flashes every 5 seconds.
 
 - The LED is switched off if no data can be written on the SD card (no
   SD card present or SD card full) or data acquisition is not working.
   Connect the Teensy to the computer and open the serial monitor of
-  the Arduino IDE. On startup the settings for the data acquisition
-  are reported and in case of problems an error message is displayed.
+  the Arduino IDE (`Ctrl+Shif+M`). On startup the settings for the
+  data acquisition are reported and in case of problems an error
+  message is displayed.
 
