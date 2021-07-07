@@ -26,7 +26,7 @@ int signalPins[] = {2, 3, -1};  // pins where to put out test signals
 // ------------------------------------------------------------------------------------------
  
 ContinuousADC aidata;
-SDWriter file;
+SDWriter file(aidata);
 WaveHeader wave;
 RTClock rtclock;
 Blink blink;
