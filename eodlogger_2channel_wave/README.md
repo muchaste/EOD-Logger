@@ -100,6 +100,38 @@ each file. The default is 10min.
 Once you modified the sketch to your needs, upload it to the Teensy (`CTRL U`).
 
 
+## Configuration
+
+Most of the settings described above can be configured via a
+configuration file. Simply place a configuration file name
+`logger.cfg` into the root folder of the SD card. If present, this
+file is read once on startup. You find an example configuration file
+along with the logger sketch in this directory. The content should
+look like this:
+
+```txt
+# Configuration file for EOD logger.
+
+Settings:
+  Path: recordings   # path where to store data
+  FileName: logger1-SDATETIME.wav  # may include DATE, SDATE, TIME, STIME, DATETIME, SDATETIME, ANUM, NUM
+  FileTime: 10min    # s or min
+  PulseFreq: 400Hz
+
+ADC:
+  SamplingRate: 44.1kHz
+  Averaging   : 4
+  Conversion  : high
+  Sampling    : high
+  Resolution  : 12bit
+  Reference   : 3.3V
+``` 
+
+All lines without a colon are ignored. Everything behind '#' is a
+comment. Unknown keys are silently ignored. Times and frequencies
+understand various units as indicated in the comments.
+
+
 ## Usage
 
 Connect the Teensy to a battery and let it record the data.
