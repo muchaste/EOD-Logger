@@ -67,7 +67,7 @@ include at the top of the sketch:
 ### Data acquisition
 
 In the top section marked as "Settings" you may adapt some settings
-according to you needs. The first block is about the data
+according to your needs. The first block is about the data
 acquisition. You can set the sampling rate, input pins (channels), bit
 resolution, and number of averages per sample. If you change these
 settings, check the output on the serial monitor and the performance
@@ -97,10 +97,32 @@ the file name are replaced by the current data, time or a number:
 `fileSaveTime` specifies for how many seconds data should be saved in
 each file. The default is 10min.
 
-Once you modified the sketch to you needs, upload it to the Teensy.
+Once you modified the sketch to your needs, upload it to the Teensy (`CTRL U`).
 
 
 ## Usage
 
 Connect the Teensy to a battery and let it record the data.
+
+
+### LED
+
+The on-board LED of the Teensy indicates the following events:
+
+- On startup the LED is switched on during the initialization of the
+  data acqusition and SD card. This can last for up to 2 seconds
+  (timeout for establishing a serial connection with a computer).
+
+- Normal operation, i.e. data acquisition is running and data are
+  written to SD card: the LED briefly flashes every 5 seconds.
+
+- Whenever a file is closed (and a new one opened), the LED lights for
+  1 second. Then it continues with flashes every 5 seconds.
+
+- The LED is switched off if no data can be written on the SD card (no
+  SD card present or SD card full) or data acquisition is not working.
+  Connect the Teensy to the computer and open the serial monitor of
+  the Arduino IDE (`Ctrl+Shif+M`). On startup the settings for the
+  data acquisition are reported and in case of problems an error
+  message is displayed.
 
