@@ -6,6 +6,7 @@
   data and time, Teensy board version and its unique MAC address.
 - Data acquisition (sampling rate, channels, averaging, etc.) can
   be easily changed.
+- A configuration file can be used to setup the logger.
 
 
 ## Dependencies
@@ -43,7 +44,7 @@ unzip ~/Downloads/TeeRec-main.zip
 ```
 
 Close the Arduino IDE and open it again. Then the Arduino IDE knows
-about the TeeRec library.
+about the [TeeRec](https://github.com/janscience/TeeRec) library.
 
 
 ## Setup
@@ -55,18 +56,20 @@ Open the `eodlogger_2channel_wave` sketch in the Arduino IDE.
 By default, the on board real-time clock of the Teensy is used. If you
 want to use a clock provided by an external DS1307RTC instead
 (e.g. the AT24C32 RTC Modul), then uncomment the Wire and DS1307RTC
-include at the top of the sketch:
+include at the top of the sketch so that it looks like this:
 ```c
+#include <Configurator.h>
 #include <ContinuousADC.h>
 #include <SDWriter.h>
 #include <Wire.h>
 #include <DS1307RTC.h>
 #include <RTClock.h>
+...
 ```
 
 ### Data acquisition
 
-In the top section marked as "Settings" you may adapt some settings
+In the top section marked as "Default settings" you may adapt some settings
 according to your needs. The first block is about the data
 acquisition. You can set the sampling rate, input pins (channels), bit
 resolution, and number of averages per sample. If you change these
@@ -83,7 +86,7 @@ card.  The files are stored in a directory whose name is specified by
 the `path` variable. The file names in this directory are specified by
 the `fileName` variable. The file name can be an arbitrary string, but
 should end with the '.wav' extension. The following special strings in
-the file name are replaced by the current data, time or a number:
+the file name are replaced by the current date, time or a number:
 
 - `DATE`: the current data as ISO string (YYYY-MM-DD)
 - `SDATE`: "short date" - the current date as YYYYMMDD
@@ -94,10 +97,45 @@ the file name are replaced by the current data, time or a number:
 - `ANUM`: a two character string numbering the files: 'aa', 'ab', 'ac', ..., 'ba', 'bb', ...
 - `NUM`: a two character string numbering the files: '01', '02', '03', ..., '10', '11', ...
 
-`fileSaveTime` specifies for how many seconds data should be saved in
+`fileSaveTime` specifies for how many seconds data should be saved into
 each file. The default is 10min.
 
-Once you modified the sketch to your needs, upload it to the Teensy (`CTRL U`).
+Once you modified the sketch to your needs, upload it to the Teensy (`Ctrl-U`).
+
+
+## Configuration
+
+Most of the settings described above can be configured via a
+configuration file. Simply place a configuration file named
+`logger.cfg` into the root folder of the SD card. If present, this
+file is read once on startup. You find an example configuration file
+along with the logger sketch in this directory. The content should
+look like this:
+
+```txt
+# Configuration file for EOD logger.
+
+Settings:
+  Path: recordings       # path where to store data
+  FileName: logger1-SDATETIME.wav  # may include DATE, SDATE, TIME, STIME, DATETIME, SDATETIME, ANUM, NUM
+  FileTime: 10min        # s, min, or h
+  PulseFreq: 400Hz       # Hz, kHz, or MHz
+
+ADC:
+  SamplingRate: 44.1kHz  # Hz, kHz, or MHz
+  Averaging   : 4
+  Conversion  : high
+  Sampling    : high
+  Resolution  : 12bit
+  Reference   : 3.3V
+``` 
+
+Everything behind '#' is a comment. All lines without a colon are
+ignored, that is empty lines are ignored, but also lines with text
+without colon.  Matching keys and most values is case
+insensitive. Unknown keys are ignored but reported. Times and
+frequencies understand various units as indicated in the
+comments. Check the serial monitor to confirm the right settings.
 
 
 ## Usage
@@ -119,10 +157,10 @@ The on-board LED of the Teensy indicates the following events:
 - Whenever a file is closed (and a new one opened), the LED lights for
   1 second. Then it continues with flashes every 5 seconds.
 
-- The LED is switched off if no data can be written on the SD card (no
-  SD card present or SD card full) or data acquisition is not working.
-  Connect the Teensy to the computer and open the serial monitor of
-  the Arduino IDE (`Ctrl+Shif+M`). On startup the settings for the
-  data acquisition are reported and in case of problems an error
-  message is displayed.
+- The LED is switched off completely if no data can be written on the
+  SD card (no SD card present or SD card full) or data acquisition is
+  not working.  Connect the Teensy to a computer and open the serial
+  monitor of the Arduino IDE (`Ctrl+Shift+M`). On startup the settings
+  for the data acquisition are reported and in case of problems an
+  error message is displayed.
 
