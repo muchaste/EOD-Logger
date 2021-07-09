@@ -9,7 +9,8 @@
 #include <TestSignals.h>
 
 
-// Settings: --------------------------------------------------------------------------------
+// Default settings: -----------------------------------------------------------------------
+// (may be overwritten by config file logger.cfg)
 
 uint32_t samplingRate = 50000; // samples per second and channel in Hertz
 int8_t channel0 = A2;           // input pin for ADC0

@@ -103,7 +103,7 @@ Once you modified the sketch to your needs, upload it to the Teensy (`CTRL U`).
 ## Configuration
 
 Most of the settings described above can be configured via a
-configuration file. Simply place a configuration file name
+configuration file. Simply place a configuration file named
 `logger.cfg` into the root folder of the SD card. If present, this
 file is read once on startup. You find an example configuration file
 along with the logger sketch in this directory. The content should
@@ -113,13 +113,13 @@ look like this:
 # Configuration file for EOD logger.
 
 Settings:
-  Path: recordings   # path where to store data
+  Path: recordings       # path where to store data
   FileName: logger1-SDATETIME.wav  # may include DATE, SDATE, TIME, STIME, DATETIME, SDATETIME, ANUM, NUM
-  FileTime: 10min    # s or min
-  PulseFreq: 400Hz
+  FileTime: 10min        # s, min, or h
+  PulseFreq: 400Hz       # Hz, kHz, or MHz
 
 ADC:
-  SamplingRate: 44.1kHz
+  SamplingRate: 44.1kHz  # Hz, kHz, or MHz
   Averaging   : 4
   Conversion  : high
   Sampling    : high
@@ -127,9 +127,10 @@ ADC:
   Reference   : 3.3V
 ``` 
 
-All lines without a colon are ignored. Everything behind '#' is a
-comment. Unknown keys are silently ignored. Times and frequencies
-understand various units as indicated in the comments.
+Everything behind '#' is a comment. All lines without a colon are
+ignored.  Unknown keys are ignored but reported. Times and frequencies
+understand various units as indicated in the comments. Check the
+serial monitor to confirm the right settings.
 
 
 ## Usage
