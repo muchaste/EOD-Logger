@@ -195,6 +195,7 @@ This project has become possible thanks to the following supervisors, contributo
 * Lydia Federman
 * Sebastian Volkmer
 * The [Teensy](https://forum.pjrc.com/) and [Arduino](https://forum.arduino.cc/) community
+* An early career grant by the [National Geographic Society](https://www.nationalgeographic.org/society/)
 
 
 
